@@ -126,6 +126,7 @@
 #define NWAVE @NWAVE_VALUE@
 #define NSCALARS @NUMBER_PASSIVE_SCALARS@
 #define NSPECIES @NUMBER_CHEMICAL_SPECIES@
+#define EOSSCALAR @EOS_SCALAR@
 #define NGHOST @NUMBER_GHOST_CELLS@
 #define NGRAV @NGRAV_VARIABLES@
 #define NCR @NCR_VARIABLES@   // cosmic ray transport module variable

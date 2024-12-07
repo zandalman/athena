@@ -35,14 +35,14 @@ class EquationOfState {
   EquationOfState(MeshBlock *pmb, ParameterInput *pin);
 
   void ConservedToPrimitive(
-      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
+      AthenaArray<Real> &cons, AthenaArray<Real> &s, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
-  void PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
+  void PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &r, const AthenaArray<Real> &bc,
                             AthenaArray<Real> &cons, Coordinates *pco,
                             int il, int iu, int jl, int ju, int kl, int ku);
   void ConservedToPrimitiveCellAverage(
-      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
+      AthenaArray<Real> &cons, AthenaArray<Real> &s, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
 
@@ -152,6 +152,8 @@ class EquationOfState {
   EosTable* ptable; // pointer to EOS table data
 #if GENERAL_EOS
   Real GetGamma();
+  Real TempFromRhoEg(Real rho, Real egas);
+  Real TempFromRhoP(Real rho, Real pres);
 #else // not GENERAL_EOS
   Real GetGamma() const {return gamma_;}
 #endif
@@ -171,6 +173,8 @@ class EquationOfState {
   Real rho_unit_, inv_rho_unit_;         // physical unit/sim unit for mass density
   Real egas_unit_, inv_egas_unit_;       // physical unit/sim unit for energy density
   Real vsqr_unit_, inv_vsqr_unit_;       // physical unit/sim unit for speed^2
+  Real arad_, kB_, mp_;                  // physical constants in code units
+  Real mu_;                              // mean molecular weight
   AthenaArray<Real> g_, g_inv_;          // metric and its inverse, used in GR
   AthenaArray<Real> normal_dd_;          // normal-frame densities, used in relativity
   AthenaArray<Real> normal_ee_;          // normal-frame energies, used in relativity

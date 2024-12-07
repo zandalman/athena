@@ -90,12 +90,14 @@ void Units::SetUnitsConstants() {
   code_density_cgs = code_mass_cgs_/code_volume_cgs;
   code_velocity_cgs = code_length_cgs_/code_time_cgs_;
 
-  code_energydensity_cgs = code_pressure_cgs = code_density_cgs*SQR(code_velocity_cgs);
+  code_energydensity_cgs = code_pressure_cgs = code_density_cgs * SQR(code_velocity_cgs);
 
   code_magneticfield_cgs = std::sqrt(4.*PI*code_pressure_cgs);
 
   code_temperature_mu_cgs = code_pressure_cgs/code_density_cgs
                            *Constants::hydrogen_mass_cgs/Constants::k_boltzmann_cgs;
+
+  code_specenergydensity_cgs = code_energydensity_cgs / code_density_cgs;
 
   // constans in code units
   cm_code = 1.0/code_length_cgs_;
@@ -123,6 +125,7 @@ void Units::SetUnitsConstants() {
   speed_of_light_code = Constants::speed_of_light_cgs*cm_code/second_code;
   echarge_code = Constants::echarge_cgs*std::sqrt(dyne_code*4*PI)*cm_code;
   bethe_code = 1.e51 * erg_code;
+  eV_code = Constants::eV_cgs * erg_code;
 }
 
 //========================================================================================

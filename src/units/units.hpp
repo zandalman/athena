@@ -33,6 +33,10 @@ static const Real k_boltzmann_cgs      = 1.380658e-16;
 static const Real speed_of_light_cgs   = 2.99792458e+10;
 static const Real echarge_cgs          = 4.80320427e-10;
 static const Real kelvin_cgs           = 1;
+static const Real eV_cgs               = 1.6021766e-12;
+static const Real X_sol                = 0.7381;
+static const Real Y_sol                = 0.2485;
+static const Real Z_sol                = 0.0134; 
 } // namespace Constants
 
 //! \brief Class for units
@@ -56,6 +60,7 @@ class Units {
 
   Real code_volume_cgs, code_density_cgs, code_velocity_cgs;
   Real code_energydensity_cgs, code_pressure_cgs;
+  Real code_specenergydensity_cgs;
   Real code_magneticfield_cgs;
   Real code_temperature_mu_cgs; // T/mu
 
@@ -77,6 +82,7 @@ class Units {
   Real speed_of_light_code;
   Real echarge_code;
   Real bethe_code; // 1.e51 erg
+  Real eV_code;
 
  private:
   // code MLT units in c.g.s.

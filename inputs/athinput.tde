@@ -1,0 +1,68 @@
+<comment>
+problem   = Tidal disruption event
+reference =
+configure = --prob=tde
+
+<job>
+problem_id = tde   # problem ID: basename of output filenames
+
+<output1>
+file_type  = hst       # History data dump
+dt         = 0.01      # time increment between outputs
+
+<output2>
+file_type  = hdf5      # HDF5 data dump
+variable   = prim      # variables to be output
+dt         = 1.0      # time increment between outputs
+
+<time>
+cfl_number  = 0.3       # The Courant, Friedrichs, & Lewy (CFL) Number
+nlim        = -1        # cycle limit
+tlim        = 768.649   # time limit
+integrator  = vl2       # time integration algorithm
+xorder      = 2         # order of spatial reconstruction
+ncycle_out  = 1         # interval for stdout summary info
+start_time  = -8438.492  # time of the simulation start
+
+<mesh>
+nx1        = 12288        # Number of zones in X1-direction
+x1min      = 0.0          # minimum value of X1
+x1max      = 1.1          # maximum value of X1
+ix1_bc     = reflecting   # inner-X1 boundary flag
+ox1_bc     = outflow      # outer-X1 boundary flag
+x1rat       = 1.00052     # ratio between neighboring cells
+
+nx2        = 1         # Number of zones in X2-direction
+x2min      = -0.5      # minimum value of X2
+x2max      = 0.5       # maximum value of X2
+
+nx3        = 1         # Number of zones in X3-direction
+x3min      = -0.5      # minimum value of X3
+x3max      = 0.5       # maximum value of X3
+
+
+num_threads = 1        # maximum number of OMP threads
+
+<meshblock>
+nx1        = 128
+nx2        = 1
+nx3        = 1
+
+<hydro>
+gamma = 1.666666666666667 # gamma = C_p/C_v
+iso_sound_speed = 1.0     # isothermal sound speed
+
+<problem>
+Q       = 1.0e6          # BH-to-star mass ratio
+beta    = 64.0           # penetration factor
+Mstar   = 1.0            # star mass in solar masses
+Rstar   = 1.0            # star radius in solar radii
+n_poly  = 1.5            # polytrope index
+r_start = 5.0            # starting radius in units of tidal radii
+mu      = 0.6            # mean molecular weight
+
+<units>
+unit_system = custom
+length_cgs = 6.96e10         # solar radius
+mass_cgs = 1.98841586e33 # solar mass
+time_cgs = 1               # second

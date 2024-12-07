@@ -435,12 +435,13 @@ void BoundaryValues::ApplyPhysicalBoundariesOnCoarseLevel(
   //!   no longer members of MeshRefinement that always exist (even if not allocated).
 
   // KGF: COUPLING OF QUANTITIES (must be manually specified)
-  pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ph->coarse_prim_,
+  PassiveScalars *ps = pmb->pscalars;
+  pmb->peos->ConservedToPrimitive(ph->coarse_cons_, ps->coarse_s_, ph->coarse_prim_,
                                   pf->coarse_b_, ph->coarse_prim_,
                                   pf->coarse_bcc_, pmr->pcoarsec,
                                   si-f1m, ei+f1p, sj-f2m, ej+f2p, sk-f3m, ek+f3p);
   if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
+    // PassiveScalars *ps = pmb->pscalars;
     pmb->peos->PassiveScalarConservedToPrimitive(ps->coarse_s_, ph->coarse_cons_,
                                                  ps->coarse_r_, ps->coarse_r_,
                                                  pmr->pcoarsec,
@@ -662,10 +663,10 @@ void BoundaryValues::ProlongateGhostCells(const NeighborBlock& nb,
 
   // KGF: COUPLING OF QUANTITIES (must be manually specified)
   // calculate conservative variables
-  pmb->peos->PrimitiveToConserved(ph->w, pf->bcc, ph->u, pmb->pcoord,
+  PassiveScalars *ps = pmb->pscalars;
+  pmb->peos->PrimitiveToConserved(ph->w, ps->r, pf->bcc, ph->u, pmb->pcoord,
                                   fsi, fei, fsj, fej, fsk, fek);
   if (NSCALARS > 0) {
-    PassiveScalars *ps = pmb->pscalars;
     pmb->peos->PassiveScalarPrimitiveToConserved(ps->r, ph->u, ps->s, pmb->pcoord,
                                                  fsi, fei, fsj, fej, fsk, fek);
   }

@@ -894,7 +894,7 @@ TaskStatus SuperTimeStepTaskList::Primitives_STS(MeshBlock *pmb, int stage) {
     //! intermediate ph->w1. ph->w1 is only used in RELATAVISTIC DYNAMICS,
     //! which is not yet compatible with STS, thus making this a safe choice.
     if (do_sts_hydro || do_sts_field) {
-      pmb->peos->ConservedToPrimitive(ph->u, ph->w, pf->b,
+      pmb->peos->ConservedToPrimitive(ph->u, ps->s, ph->w, pf->b,
                                       ph->w, pf->bcc, pmb->pcoord,
                                       il, iu, jl, ju, kl, ku);
       if (pmb->porb->orbital_advection_defined) {
