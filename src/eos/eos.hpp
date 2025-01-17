@@ -35,10 +35,10 @@ class EquationOfState {
   EquationOfState(MeshBlock *pmb, ParameterInput *pin);
 
   void ConservedToPrimitive(
-      AthenaArray<Real> &cons, AthenaArray<Real> &s, const AthenaArray<Real> &prim_old, const FaceField &b,
+      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
-  void PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &r, const AthenaArray<Real> &bc,
+  void PrimitiveToConserved(const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
                             AthenaArray<Real> &cons, Coordinates *pco,
                             int il, int iu, int jl, int ju, int kl, int ku);
   void ConservedToPrimitiveCellAverage(

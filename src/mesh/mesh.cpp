@@ -1733,7 +1733,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (pbval->nblevel[0][1][1] != -1) kl -= NGHOST;
           if (pbval->nblevel[2][1][1] != -1) ku += NGHOST;
         }
-        pmb->peos->ConservedToPrimitive(ph->u, ps->s, ph->w1, pf->b,
+        pmb->peos->ConservedToPrimitive(ph->u, ph->w1, pf->b,
                                         ph->w, pf->bcc, pmb->pcoord,
                                         il, iu, jl, ju, kl, ku);
         if (NSCALARS > 0) {
@@ -1766,7 +1766,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           }
           pbval->ApplyPhysicalBoundaries(time, 0.0, pbval->bvars_main_int);
           // Perform 4th order W(U)
-          pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ps->s, ph->w1, pf->b,
+          pmb->peos->ConservedToPrimitiveCellAverage(ph->u, ph->w1, pf->b,
                                                      ph->w, pf->bcc, pmb->pcoord,
                                                      il, iu, jl, ju, kl, ku);
           if (NSCALARS > 0) {

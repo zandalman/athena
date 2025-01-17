@@ -16,9 +16,9 @@
 
 //----------------------------------------------------------------------------------------
 //! \fnReal findRootCubic(Real A, Real B)
-//! \brief Solve the repressed cubic equation x^4 + 4 B x - A^2 = 0
-//! This repressed cubic is equivalent to the quartic equation y^4 + A y - B = 0
-//! where y = sqrt(x) * (sqrt(2.0 * A / sqrt(x^3) - 1.0) - 1.0) / 2.0
+//! \brief Solve the repressed cubic equation y^3 + 4 B y - A^2 = 0
+//! This repressed cubic is equivalent to the quartic equation x^4 + A x - B = 0
+//! where x = sqrt(y) * (sqrt(2.0 * A / sqrt(y^3) - 1.0) - 1.0) / 2.0
 Real findRootCubic(Real A, Real B) {
   Real q = 4.0/3.0 * B;
   Real r = A*A / 2.0;

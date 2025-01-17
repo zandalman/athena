@@ -76,7 +76,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) :
 //! \brief Converts conserved into primitive variables in adiabatic hydro.
 
 void EquationOfState::ConservedToPrimitive(
-    AthenaArray<Real> &cons, AthenaArray<Real> &s, const AthenaArray<Real> &prim_old, const FaceField &b,
+    AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
     AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
     Coordinates *pco, int il,int iu, int jl,int ju, int kl,int ku) {
   for (int k=kl; k<=ku; ++k) {
@@ -126,7 +126,7 @@ void EquationOfState::ConservedToPrimitive(
 //! \brief Converts primitive variables into conservative variables
 
 void EquationOfState::PrimitiveToConserved(
-    const AthenaArray<Real> &prim, const AthenaArray<Real> &r, const AthenaArray<Real> &bc,
+    const AthenaArray<Real> &prim, const AthenaArray<Real> &bc,
     AthenaArray<Real> &cons, Coordinates *pco,
     int il, int iu, int jl, int ju, int kl, int ku) {
   // Force outer-loop vectorization
