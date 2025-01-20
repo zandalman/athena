@@ -42,7 +42,7 @@ class EquationOfState {
                             AthenaArray<Real> &cons, Coordinates *pco,
                             int il, int iu, int jl, int ju, int kl, int ku);
   void ConservedToPrimitiveCellAverage(
-      AthenaArray<Real> &cons, AthenaArray<Real> &s, const AthenaArray<Real> &prim_old, const FaceField &b,
+      AthenaArray<Real> &cons, const AthenaArray<Real> &prim_old, const FaceField &b,
       AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
 

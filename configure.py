@@ -15,7 +15,6 @@
 #   --nghost=xxx      set NGHOST=xxx
 #   --nscalars=xxx    set NSCALARS=xxx
 #   --nspecies=xxx    set NSPECIES=xxx
-#   --eos_scalar=xxx  use a passive scalar in the EOS
 #   -eos_table        enable EOS table
 #   -b                enable magnetic fields
 #   -s                enable special relativity
@@ -124,11 +123,6 @@ parser.add_argument('--nscalars',
 parser.add_argument('--nspecies',
                     default='0',
                     help='set number of chemical species')
-
-# --eos_scalar=[value] argument
-parser.add_argument('--eos_scalar',
-                    default='-1',
-                    help='set the index of the passive scalar to use in the EOS')
 
 # -b argument
 parser.add_argument('-b',
@@ -491,9 +485,6 @@ definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
 
 # --nspecies=[value] argument
 definitions['NUMBER_CHEMICAL_SPECIES'] = args['nspecies']
-
-# --eos_scalar=[value] argument
-definitions['EOS_SCALAR'] = args['eos_scalar']
 
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
