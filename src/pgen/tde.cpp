@@ -59,9 +59,10 @@ struct pgentde {
 pgentde* tde = new pgentde();
 
 struct laneEmden {
-  Real th;
-  Real phi;
+  Real th;  // Dimensionless density
+  Real phi; // Dimensionless density derivative
 
+  // Overload the + operator
   laneEmden operator+(const laneEmden& other) const {
     laneEmden le;
     le.th = th + other.th;
@@ -69,6 +70,7 @@ struct laneEmden {
     return le;
   }
 
+  // Overload the * operator
   laneEmden operator*(Real scalar) const {
     laneEmden le;
     le.th = scalar * th;
@@ -82,15 +84,16 @@ struct laneEmden {
 };
 
 struct affineModel {
-  Real dxdx0;
-  Real dxdy0;
-  Real dydx0;
-  Real dydy0;
-  Real dxdotdx0;
-  Real dxdotdy0;
-  Real dydotdx0;
+  Real dxdx0;    // Jacobian of the affine transformation
+  Real dxdy0;    // ( dxdx0 dxdy0 )
+  Real dydx0;    // ( dydx0 dydy0 )
+  Real dydy0;    
+  Real dxdotdx0; // Jacobian dimensionless time derivative of the affine transformation
+  Real dxdotdy0; // ___d ( dxdx0 dxdy0 )
+  Real dydotdx0; // dtau ( dydx0 dydy0 )
   Real dydotdy0;
 
+  // Overload the + operator
   affineModel operator+(const affineModel& other) const {
     affineModel am;
     am.dxdx0 = dxdx0 + other.dxdx0;
@@ -104,6 +107,7 @@ struct affineModel {
     return am;
   }
 
+  // Overload the * operator
   affineModel operator*(Real scalar) const {
     affineModel am;
     am.dxdx0 = scalar * dxdx0;
@@ -124,7 +128,7 @@ struct affineModel {
 
 //----------------------------------------------------------------------------------------
 //! \fn void calcLaneEmden(const Real xi, const laneEmden le, laneEmden &dledxi)
-//! \brief calcLaneEmden: Compute derivatives in the Lane-Emden equation with respect to xi
+//! \brief calcLaneEmden: Compute derivatives in the Lane-Emden equation with respect to xi.
 //! \param xi      Dimensionless radius
 //! \param le      Lane-Emden parameters
 //! \param dledxi  Lane-Emden parameter derivatives
@@ -135,7 +139,8 @@ void calcLaneEmden(const Real xi, const laneEmden le, laneEmden &dledxi) {
 
 //----------------------------------------------------------------------------------------
 //! \fn void calcAffineModel(Real tau, const affineModel &am, affineModel &amdot)
-//! \brief calcAffineModel: Compute the derivatives in the affine model with respect to tau
+//! See Coughlin&Nixon2022 Section 3
+//! \brief calcAffineModel: Compute the derivatives in the affine model with respect to tau.
 //! \param tau    Dimensionless time
 //! \param am     Affine model parameters
 //! \param amdot  Affine model parameter derivatives
@@ -159,7 +164,7 @@ void calcAffineModel(Real tau, const affineModel &am, affineModel &amdot) {
 
 //----------------------------------------------------------------------------------------
 //! \fn void rk4(Callable dydx, const Real dx, Real &x, T &y)
-//! \brief rk4: Advance an integration by one step using the 4th-order Runge-Kutta method
+//! \brief rk4: Advance an integration by one step using the 4th-order Runge-Kutta method.
 //! \param dydx Derivative function
 //! \param dx   Step size
 //! \param x    Independent variable
@@ -177,50 +182,62 @@ void rk4(Callable dydx, const Real dx, Real &x, T &y) {
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void calcOrbit(const Real time)
-//! \brief calcOrbit: Compute radial coordinate of star in its parabolic orbit
+//! \fn Real calcOrbit(const Real time)
+//! \brief calcOrbit: Compute radial coordinate of star in its parabolic orbit.
+//! The formula is derived from Barker's equation.
 //! \param time Time
 //! \return Radial coordinate of star
 Real calcOrbit(const Real time) {
   Real A = sqrt(tde->G * tde->M_BH / (2.0 * tde->r_p*tde->r_p*tde->r_p));
-  return tde->r_p * 1.0/2.0 * (-1.0 + 2.0 * cosh(2.0/3.0 * asinh(3.0/2.0 * A * time)));
+  return tde->r_p * (-1.0 + 2.0 * cosh(2.0/3.0 * asinh(3.0/2.0 * A * time)));
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn Real calcTau(const Real time, const Real r_star)
+//! \brief calcOrbit: Compute dimensionless time.
+//! See Coughlin&Nixon2022 Section 2.
+//! \param time Time
+//! \param r_star Radial coordinate of the star
+//! \return Dimensionless time
 Real calcTau(const Real time, const Real r_star) {
   Real sgn_tau = time > 0.0 ? 1.0 : -1.0;
   return sgn_tau * acosh(sqrt(r_star / tde->r_p));
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real tidalAccel(Real x, Real time)
-//! \brief tidalAccel: Compute acceleration due to SMBH tidal field
-//! \param x Position
-//! \param time Time
+//! \fn Real tidalAccel(Real x, Real r_star)
+//! \brief tidalAccel: Compute acceleration due to SMBH tidal field.
+//! \param x      Vertical position
+//! \param r_star Radial coordinate of the star
 //! \return Acceleration due to SMBH tidal field
 Real tidalAccel(Real x, Real r_star) {
   return -tde->G * tde->M_BH / (r_star*r_star*r_star) * x;
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real interp(Real xoR, AthenaArray<Real> &arr)
-//! \brief interp: Interpolate the value of an array at a given position
-//! \param xoR Position over radius
-//! \param arr Array to interpolate
+//! \fn Real interp(const Real x, const int size, const Real xmin, const Real xmax, const AthenaArray<Real> &arr)
+//! \brief interp: Interpolate from an array of values at a given point.
+//! We assume the point array has uniform spacing.
+//! \param x    Interpolation point
+//! \param size Size of the array
+//! \param xmin Minimum value of point array
+//! \param xmax Maximum value of point array
+//! \param arr  Array of values
 //! \return Interpolated value
 Real interp(const Real x, const int size, const Real xmin, const Real xmax, const AthenaArray<Real> &arr) {
-  if ( x <= xmin ) return arr(0);
+  if ( x <= xmin ) return arr(0); // check if point outside of point array
   if ( x >= xmax ) return arr(size - 1);
   const Real dx = (xmax - xmin) / (static_cast<Real>(size) - 1.0);
   const int idx = static_cast<int>(std::floor((x - xmin) / dx));
-  const Real xlow = static_cast<Real>(idx) * dx;
+  const Real xlow = xmin + static_cast<Real>(idx) * dx;
   const Real iparam = (x - xlow) / dx; // interpolation parameter
   return arr(idx) * (1.0 - iparam) + arr(idx + 1) * iparam;
 }
 
 //----------------------------------------------------------------------------------------
 //! \fn Real selfGravAccel(Real x0oR)
-//! \brief selfGravAccel: Compute acceleration from self-gravity
-//! \param x0oR Initial position over radius
+//! \brief selfGravAccel: Compute acceleration due to self-gravity.
+//! \param x0oR Initial position in units of stellar radii
 //! \return Acceleration due to self-gravity
 Real selfGravAccel(const Real x0oR) {
   return -interp(x0oR, tde->num_le, 0.0, 1.0, tde->accel_grav);
@@ -228,7 +245,7 @@ Real selfGravAccel(const Real x0oR) {
 
 //----------------------------------------------------------------------------------------
 //! \fn Real logAreaDot(const Real tau, const Real r_star)
-//! \brief logAreaDot: Compute the time derivative of the log area factor
+//! \brief logAreaDot: Compute the time derivative of the log area factor.
 //! \param tau    Dimensionless time
 //! \param r_star Radial coordinate of the star
 //! \return Time derivative of the log area factor
@@ -242,8 +259,8 @@ Real logAreaDot(const Real tau, const Real r_star) {
 
 //----------------------------------------------------------------------------------------
 //! \fn void tdeSrcFunc(...)
-//! Including contributions from tides, self-gravity, and Hydrogen fusion
 //! \brief tdeSrcFunc: Custom source function
+//! Including contributions from tides, self-gravity, and in-plane stretching.
 void tdeSrcFunc(
   MeshBlock *pmb, 
   const Real time, 
@@ -264,9 +281,9 @@ void tdeSrcFunc(
   Real eps_thm_over_temp = units->k_boltzmann_code / (gamma_gas - 1.0) / (mu * units->hydrogen_mass_code);
 
   Real logrhodot_area = 0.0;
-  // if ( r_star < tde->r_t ) { 
-  //   logrhodot_area = -logAreaDot(tau, r_star);
-  // }
+  if ( r_star < tde->r_t ) { 
+    logrhodot_area = -logAreaDot(tau, r_star);
+  }
 
   for (int i=pmb->is; i<=pmb->ie; i++) {
     for (int j=pmb->js; j<=pmb->je; j++) {
@@ -277,8 +294,6 @@ void tdeSrcFunc(
         Real rho = prim(IDN, k, j, i);
         Real vel = prim(IVX, k, j, i);
         Real egas = prim(IEN, k, j, i);
-
-        std::cout << rho << ", " << x0oR << std::endl;
 
         EquationOfState *peos = pmb->peos;
         Real temp = peos->TempFromRhoEg(rho, egas);
@@ -307,16 +322,16 @@ void tdeSrcFunc(
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real calcRstar(MeshBlock *pmb, int iout)
-//! \brief calcRstar: Compute the radius of the center of mass of the star
+//! \fn Real calcRstarOut(MeshBlock *pmb, int iout)
+//! \brief calcRstarOut: Compute the radial coordinate of the star in its parabolic orbit.
 Real calcRstarOut(MeshBlock *pmb, int iout) {
   Real r_star = calcOrbit(pmb->pmy_mesh->time);
   return r_star * pmb->pmy_mesh->punit->code_length_cgs;
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real calcRhoMax(MeshBlock *pmb, int iout)
-//! \brief calcRhoMax: Compute the maximum density
+//! \fn Real calcRhoMaxOut(MeshBlock *pmb, int iout)
+//! \brief calcRhoMaxOut: Compute the maximum density.
 Real calcRhoMaxOut(MeshBlock *pmb, int iout) {
   Real rho_max = 0.0;
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -330,8 +345,8 @@ Real calcRhoMaxOut(MeshBlock *pmb, int iout) {
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real calcPresMax(MeshBlock *pmb, int iout)
-//! \brief calcPresMax: Compute the maximum pressure
+//! \fn Real calcPresMaxOut(MeshBlock *pmb, int iout)
+//! \brief calcPresMaxOut: Compute the maximum pressure.
 Real calcPresMaxOut(MeshBlock *pmb, int iout) {
   Real pres_max = 0.0;
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -344,12 +359,18 @@ Real calcPresMaxOut(MeshBlock *pmb, int iout) {
   return pres_max * pmb->pmy_mesh->punit->code_pressure_cgs;
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn Real calcTauOut(MeshBlock *pmb, int iout)
+//! \brief calcTauOut: Compute the dimensionless time.
 Real calcTauOut(MeshBlock *pmb, int iout) {
   Real time = pmb->pmy_mesh->time;
   Real r_star = calcOrbit(time);
   return calcTau(time, r_star);
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn Real calcAreaOut(MeshBlock *pmb, int iout)
+//! \brief calcAreaOut: Compute the in-plane stretching factor.
 Real calcAreaOut(MeshBlock *pmb, int iout) {
   Real time = pmb->pmy_mesh->time;
   Real r_star = calcOrbit(time);
@@ -410,6 +431,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   // compute the central density, scale length, and entropy
   dxi = tde->R_star / 1.0e6;
+  xi = dxi;
   le.th = 1.0;
   le.phi = 0.0;
   while ( le.th >= 0.0 ) { 
