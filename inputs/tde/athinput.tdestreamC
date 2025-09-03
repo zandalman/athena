@@ -1,0 +1,87 @@
+<comment>
+problem   = Tidal disruption event debris stream
+reference =
+configure = --prob=tdestreamC
+
+<job>
+problem_id = tdestreamC   # problem ID: basename of output filenames
+
+<output1>
+file_type   = hst        # History data dump
+dt          = 0.0001     # time increment between outputs
+data_format = %.12e      # output data format
+
+<output2>
+file_type  = hdf5      # HDF5 data dump
+variable   = prim      # variables to be output
+dt         = 0.01      # time increment between outputs
+
+<time>
+cfl_number =             0.3  # CFL number
+nlim       =              -1  # cycle limit
+tlim       =      17.2861136  # cycle limit
+integrator =             vl2  # time integration algorithm
+xorder     =               2  # order of spatial reconstruction
+ncycle_out =               1  # interval for stdout summary info
+start_time =     -17.2861136  # time of simulation start
+
+<mesh>
+nx1        = 16384         # Number of zones in X1-direction
+x1min      = 0.0          # minimum value of X1
+x1max      = 0.50         # maximum value of X1
+ix1_bc     = reflecting   # inner-X1 boundary flag
+ox1_bc     = outflow      # outer-X1 boundary flag
+x1rat       = 1.00052     # ratio between neighboring cells
+
+nx2        = 1         # Number of zones in X2-direction
+x2min      = -0.5      # minimum value of X2
+x2max      = 0.5       # maximum value of X2
+
+nx3        = 1         # Number of zones in X3-direction
+x3min      = -0.5      # minimum value of X3
+x3max      = 0.5       # maximum value of X3
+
+num_threads = 1        # maximum number of OMP threads
+
+<meshblock>
+nx1        = 16384
+nx2        = 1
+nx3        = 1
+
+<hydro>
+gamma              = 1.666666666666667      # gamma
+iso_sound_speed    = 1.0                    # isothermal sound speed
+dfloor             = 1.0e-16                # density floor
+pfloor             = 1.0e-22                # pressure floor
+eos_rho_unit       = 47.19748809041113      # rho [sim unit] * eos_rho_unit = rho [table unit]
+eos_egas_unit      = 1.8004773670297385e+21 # egas [sim unit] * eos_rho_unit = egas [table unit]
+eos_file_name      = /home/za9132/software/athena/athena++/src/eos/general/T+13_v3.hdf5 # tabulated EOS filename
+
+<problem>
+Q       =         1000000  # BH-to-star mass ratio
+beta    =               2  # penetration factor
+Mstar   =           1e-06  # star mass
+Rstar   =            0.02  # star radius
+Rslice  =    0.0315465537  # stream slice radius
+rho0    =  0.000223643279  # affine model initial density
+x0      =     -8.16883946  # initial x-coordinate
+y0      =     -5.76801461  # initial y-coordinate
+vx0     =     0.415189084  # initial x-velocity
+vy0     =     0.123097799  # initial y-velocity
+lam0    =    0.0218787821  # initial longitudinal stretching
+Om0     =   0.00741651078  # initial angular frequency
+alpha0  =      6.57136583  # initial orientation
+L0      =      2107.88117  # initial longitudinal size
+H0      =      6.51167302  # initial vertical size
+Hdot0   =    -0.170385717  # initial vertical stretching
+Dlt0    =      6.63176216  # initial horizontal size
+Dltdot0 =    -0.163881458  # initial horizontal stretching
+vpar0   =    0.0491105384  # initial in-plane shear
+temp0   =       3037.1623  # initial temperature
+K0      =   0.00259537181  # initial entropy
+
+<units>
+unit_system = custom
+length_cgs = 3.48e+12  # pericenter radius
+mass_cgs = 1.9891e+39  # BH mass
+time_cgs = 563.436339  # dynamical time at pericenter

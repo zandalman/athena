@@ -1,0 +1,84 @@
+<comment>
+problem   = Tidal disruption event debris stream
+reference =
+configure = --prob=tdestream
+
+<job>
+problem_id = tdestream   # problem ID: basename of output filenames
+
+<output1>
+file_type   = hst        # History data dump
+dt          = 0.0001     # time increment between outputs
+data_format = %.12e      # output data format
+
+<output2>
+file_type  = hdf5      # HDF5 data dump
+variable   = prim      # variables to be output
+dt         = 0.01      # time increment between outputs
+
+<time>
+cfl_number =             0.3  # CFL number
+nlim       =              -1  # cycle limit
+tlim       =      30.9417528  # cycle limit
+integrator =             vl2  # time integration algorithm
+xorder     =               2  # order of spatial reconstruction
+ncycle_out =               1  # interval for stdout summary info
+start_time =     -30.9417528  # time of simulation start
+
+<mesh>
+nx1        = 16384        # Number of zones in X1-direction
+x1min      = 0.0          # minimum value of X1
+x1max      = 0.10         # maximum value of X1
+ix1_bc     = reflecting   # inner-X1 boundary flag
+ox1_bc     = outflow      # outer-X1 boundary flag
+x1rat       = 1.00048     # ratio between neighboring cells
+
+nx2        = 1         # Number of zones in X2-direction
+x2min      = -0.5      # minimum value of X2
+x2max      = 0.5       # maximum value of X2
+
+nx3        = 1         # Number of zones in X3-direction
+x3min      = -0.5      # minimum value of X3
+x3max      = 0.5       # maximum value of X3
+
+num_threads = 1        # maximum number of OMP threads
+
+<meshblock>
+nx1        = 16384
+nx2        = 1
+nx3        = 1
+
+<hydro>
+gamma = 1.666666666666667 # gamma = C_p/C_v
+iso_sound_speed = 1.0     # isothermal sound speed
+dfloor          = 1.0e-16 # density floor
+pfloor          = 1.0e-28 # pressure floor
+
+<problem>
+Q       =         1000000  # BH-to-star mass ratio
+beta    =               2  # penetration factor
+Mstar   =           1e-06  # star mass
+Rstar   =            0.02  # star radius
+Rslice  =    0.0334385538  # stream slice radius
+rho0    =  0.000175542853  # affine model initial density
+x0      =     -8.17544751  # initial x-coordinate
+y0      =     -5.75864998  # initial y-coordinate
+vx0     =     0.414484056  # initial x-velocity
+vy0     =     0.122013472  # initial y-velocity
+lam0    =    0.0219091176  # initial longitudinal stretching
+Om0     =   0.00744133413  # initial angular frequency
+alpha0  =      6.56945291  # initial orientation
+L0      =      1651.22602  # initial longitudinal size
+H0      =     0.679859883  # initial vertical size
+Hdot0   =   -0.0172656752  # initial vertical stretching
+Dlt0    =     0.972749882  # initial horizontal size
+Dltdot0 =   -0.0218130811  # initial horizontal stretching
+vpar0   =   0.00722681471  # initial in-plane shear
+temp0   =      304.462182  # initial temperature
+K0      =  4.48905571e-05  # initial entropy
+
+<units>
+unit_system = custom
+length_cgs = 3.48e+12  # pericenter radius
+mass_cgs = 1.9891e+39  # BH mass
+time_cgs = 563.436339  # dynamical time at pericenter

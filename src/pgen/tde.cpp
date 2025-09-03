@@ -51,6 +51,7 @@ struct pgentde {
   int num_le;      // Number of samples for Lane-Emden equation
   int num_tau;     // Number of samples for affine model evolution
   Real tau_max;    // Maximum dimensionless time
+  std::array<Real, 12> x0_t_list;  // mass coordinates at which to record outputs
   AthenaArray<Real> rho_star;   // Stellar density profile
   AthenaArray<Real> accel_grav; // Stellar gravitational field profile
   AthenaArray<Real> area;       // Area factor
@@ -253,39 +254,30 @@ void tdeSrcFunc(
   AthenaArray<Real> &cons,
   AthenaArray<Real> &cons_scalar
 ) {
-  // compute orbital radius and dimenionless time
+  
+  // initialize variables
+  Real z, x0oR, rho, vel, pres, temp, egas, vdot, rhodot, q;
+  EquationOfState *peos = pmb->peos;
+  
+  // calculate affine model parameters
   Real r_star = calcOrbit(time);
   Real tau = calcTau(time, r_star);
+  Real logrhodot = r_star < tde->r_t ? -logAreaDot(tau, r_star) : 0.0;
 
-  // compute gas specific internal energy over temperature
-  // eps / temp = k_B / (gam - 1) / (mu m_H)
-  EquationOfState *peos = pmb->peos;
-  Units *units = pmb->pmy_mesh->punit;
-  Real eps_over_temp = units->k_boltzmann_code / (tde->gamg - 1.0) / (tde->mu * units->hydrogen_mass_code);
-
-  // compute change in log rho due to area factor
-  Real logrhodot = 0.0;
-  if ( r_star < tde->r_t ) { 
-    logrhodot = -logAreaDot(tau, r_star);
-  }
-
-  Real x, x0oR, rho, vel, pres, temp, eps, vdot, rhodot;
   for (int i=pmb->is; i<=pmb->ie; i++) {
 
-    // get fluid variables
-    x = pmb->pcoord->x1v(i);
-    x0oR = pmb->pscalars->r(0, 0, 0, i);
+    // get primatives
+    z = pmb->pcoord->x1v(i);
     rho = prim(IDN, 0, 0, i);
     vel = prim(IVX, 0, 0, i);
     pres = prim(IPR, 0, 0, i);
+    egas = pmb->peos->EgasFromRhoP(rho, pres);
+    q = 1.0 + pres / egas; // d(lnegas)/d(lnrho)|s
+    x0oR = pmb->pscalars->r(0, 0, 0, i);
 
-    // compute gas specific internal energy
-    temp = peos->TempFromRhoP(rho, pres);
-    eps = eps_over_temp * temp;
-
-    // compute velocity and density time derivatives
-    vdot = -tde->G * tde->M_BH / (r_star*r_star*r_star) * x; // tidal contribution
-    vdot += -interp(x0oR, tde->num_le, 0.0, 1.0, tde->accel_grav); // self-gravity contribution
+    // compute time derivatives
+    vdot = -tde->G * tde->M_BH * z / (r_star*r_star*r_star);       // tides
+    vdot += -interp(x0oR, tde->num_le, 0.0, 1.0, tde->accel_grav); // self-gravity
     rhodot = rho * logrhodot;
 
     // add source terms
@@ -294,7 +286,7 @@ void tdeSrcFunc(
     cons(IEN, 0, 0, i) += dt * (
       rho * vel * vdot 
       + 0.5 * vel*vel * rhodot
-      + eps * rhodot
+      + egas * rhodot / rho * q // extra factor accounts for d(lneps)/d(lnrho)|s
     );
     for (int iscal=0; iscal<NSCALARS; iscal++) {
       cons_scalar(iscal, 0, 0, i) += dt * rhodot * prim_scalar(iscal, 0, 0, i);
@@ -303,11 +295,130 @@ void tdeSrcFunc(
 }
 
 //----------------------------------------------------------------------------------------
+//! \fn Real calcEdotTide(MeshBlock *pmb, int iout)
+//! \brief calcEdotTide: Calculate the energy source term contribution from tides.
+Real calcEdotTide(MeshBlock *pmb, int iout) {
+  
+  // initialize variables
+  Real z, dz, rho, vel, vdot;
+  Real Edot = 0.0;
+  
+  // calculate affine model parameters
+  Real time = pmb->pmy_mesh->time;
+  Real r_star = calcOrbit(time);
+
+  // loop over cells
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    
+    // get primitives
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    vel = pmb->phydro->w(IVX, 0, 0, i);
+
+    // compute Edot
+    vdot = -tde->G * tde->M_BH * z / (r_star*r_star*r_star);
+    Edot += -dz * rho * vel * vdot;
+  }
+  return Edot;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real calcEdotGrav(MeshBlock *pmb, int iout)
+//! \brief calcEdotGrav: Calculate the energy source term contribution from self-gravity.
+Real calcEdotGrav(MeshBlock *pmb, int iout) {
+  
+  // initialize variables
+  Real z, dz, rho, vel, vdot, x0oR;
+  Real Edot = 0.0;
+
+  // loop over cells
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    
+    // get primitives
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    vel = pmb->phydro->w(IVX, 0, 0, i);
+    x0oR = pmb->pscalars->r(0, 0, 0, i);
+
+    // compute Edot
+    vdot = -interp(x0oR, tde->num_le, 0.0, 1.0, tde->accel_grav);
+    Edot += -dz * rho * vel * vdot;
+  }
+  return Edot;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real calcEdotArea(MeshBlock *pmb, int iout)
+//! \brief calcEdotArea: Calculate the energy source term contribution from in-plane stretching.
+Real calcEdotArea(MeshBlock *pmb, int iout) {
+  
+  // initialize variables
+  Real z, dz, rho, vel, pres, egas, q, rhodot;
+  Real Edot = 0.0;
+
+  // calculate affine model parameters
+  Real time = pmb->pmy_mesh->time;
+  Real r_star = calcOrbit(time);
+  Real tau = calcTau(time, r_star);
+  Real logrhodot = r_star < tde->r_t ? -logAreaDot(tau, r_star) : 0.0;
+
+  // loop over cells
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    
+    // get primitives
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    vel = pmb->phydro->w(IVX, 0, 0, i);
+    pres = pmb->phydro->w(IPR, 0, 0, i);
+    egas = pmb->peos->EgasFromRhoP(rho, pres);
+    q = 1.0 + pres / egas;
+
+    // compute Edot
+    rhodot = rho * logrhodot;
+    Edot += -dz * rhodot * (0.5 * vel*vel + egas / rho * q);
+  }
+  return Edot;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real calcEkin(MeshBlock *pmb, int iout)
+//! \brief calcEkin: Calculate the total kinetic energy.
+Real calcEkin(MeshBlock *pmb, int iout) {
+  Real dx, rho, vel;
+  Real Ekin = 0.0;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    dx = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    vel = pmb->phydro->w(IVX, 0, 0, i);
+    Ekin += dx * 0.5 * rho * vel*vel;
+  }
+  return Ekin;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real calcEth(MeshBlock *pmb, int iout)
+//! \brief calcEth: Calculate the total thermal energy.
+Real calcEth(MeshBlock *pmb, int iout) {
+  EquationOfState *peos = pmb->peos;
+  Real dx, rho, pres;
+  Real Eth = 0.0;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    dx = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    pres = pmb->phydro->w(IPR, 0, 0, i);
+    Eth += dx * peos->EgasFromRhoP(rho, pres);
+  }
+  return Eth;
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn Real calcRstarOut(MeshBlock *pmb, int iout)
 //! \brief calcRstarOut: Compute the radial coordinate of the star in its parabolic orbit.
 Real calcRstarOut(MeshBlock *pmb, int iout) {
-  Real r_star = calcOrbit(pmb->pmy_mesh->time);
-  return r_star * pmb->pmy_mesh->punit->code_length_cgs;
+  return calcOrbit(pmb->pmy_mesh->time);
 }
 
 //----------------------------------------------------------------------------------------
@@ -329,29 +440,7 @@ Real calcAreaOut(MeshBlock *pmb, int iout) {
   return interp(tau, tde->num_tau, -tde->tau_max, tde->tau_max, tde->area);
 }
 
-//----------------------------------------------------------------------------------------
-//! \fn Real calcRhoMaxOut(MeshBlock *pmb, int iout)
-//! \brief calcRhoMaxOut: Compute the maximum density.
-Real calcRhoMaxOut(MeshBlock *pmb, int iout) {
-  Real rho_max = 0.0;
-  for (int i=pmb->is; i<=pmb->ie; i++) {
-    rho_max = std::fmax(rho_max, pmb->phydro->w(IDN, 0, 0, i));
-  }
-  return rho_max;
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn Real calcPresMaxOut(MeshBlock *pmb, int iout)
-//! \brief calcPresMaxOut: Compute the maximum pressure.
-Real calcPresMaxOut(MeshBlock *pmb, int iout) {
-  Real pres_max = 0.0;
-  for (int i=pmb->is; i<=pmb->ie; i++) {
-    pres_max = std::fmax(pres_max, pmb->phydro->w(IPR, 0, 0, i));
-  }
-  return pres_max;
-}
-
-Real calcRhoCOut(MeshBlock *pmb, int iout) {
+Real calcRhoC(MeshBlock *pmb, int iout) {
   Real rho_c = 0.0;
   if ( pmb->pcoord->x1f(pmb->is) == 0.0 ) {
     rho_c = pmb->phydro->w(IDN, 0, 0, 0);
@@ -359,7 +448,15 @@ Real calcRhoCOut(MeshBlock *pmb, int iout) {
   return rho_c;
 }
 
-Real calcTempCOut(MeshBlock *pmb, int iout) {
+Real calcPresC(MeshBlock *pmb, int iout) {
+  Real pres_c = 0.0;
+  if ( pmb->pcoord->x1f(pmb->is) == 0.0 ) {
+    pres_c = pmb->phydro->w(IPR, 0, 0, 0);
+  }
+  return pres_c;
+}
+
+Real calcTempC(MeshBlock *pmb, int iout) {
   Real rho_c, pres_c;
   Real temp_c = 0.0;
   if ( pmb->pcoord->x1f(pmb->is) == 0.0 ) {
@@ -370,116 +467,204 @@ Real calcTempCOut(MeshBlock *pmb, int iout) {
   return temp_c;
 }
 
-template <int n10ths>
-Real calc10thCoord(MeshBlock *pmb, int iout) {
-  constexpr Real x0_arr[] = {
-    0.132728, 0.176674, 0.213271, 0.247949, 0.283294,
-    0.321520, 0.365572, 0.421027, 0.503631, 1.000000
-  }; // from spherical polytrope
-  const Real x0_t = x0_arr[n10ths];
+template <int idx>
+Real calcCoordLag(MeshBlock *pmb, int iout) {
+  
+  // initialize variables
+  const Real x0_t = tde->x0_t_list[idx];
   Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
   Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
-  Real x_t = 0.0, diff = x0_max - x0_min, x0;
-  if ( x0_t > x0_min && x0_t < x0_max ) {
+  Real x = 0.0;
+  Real x_prev = 0.0;
+  Real x_t = 0.0;
+  Real x0, x0_prev, iparam;
+
+  // only proceed if meshblock contains target Lagrangian coordinate
+  if ( x0_t >= x0_min && x0_t <= x0_max ) {
+
+    // find mass coordinate
     for (int i=pmb->is; i<=pmb->ie; i++) {
       x0 = pmb->pscalars->r(0, 0, 0, i);
-      if ( fabs(x0 - x0_t) < diff ) {
-        diff = fabs(x0 - x0_t);
-        x_t = pmb->pcoord->x1v(i);
-      }
+      x = pmb->pcoord->x1v(i);
+      if ( x0 > x0_t ) break;
+      x0_prev = x0;
+      x_prev = x;
     }
+
+    // interpolate value
+    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
+    x_t = x_prev * (1.0 - iparam) + x * iparam;
+
   }
+
   return x_t;
 }
 
-template <int n10ths>
-Real calc10thRho(MeshBlock *pmb, int iout) {
-  // constexpr Real x0_arr[] = {
-  //   0.268022, 0.348876, 0.411954, 0.467946, 0.521182,
-  //   0.574469, 0.630587, 0.693703, 0.773791, 1.000000
-  // }; // from spherical polytrope
-  constexpr Real x0_arr[] = {
-    0.132728, 0.176674, 0.213271, 0.247949, 0.283294,
-    0.321520, 0.365572, 0.421027, 0.503631, 1.000000
-  }; // from spherical polytrope
-  const Real x0_t = x0_arr[n10ths];
+template <int idx>
+Real calcRhoLag(MeshBlock *pmb, int iout) {
+  
+  // initialize variables
+  const Real x0_t = tde->x0_t_list[idx];
   Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
   Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
-  Real rho_t = 0.0, diff = x0_max - x0_min, x0;
+  Real rho = 0.0;
+  Real rho_prev = 0.0;
+  Real rho_t = 0.0;
+  Real x0, x0_prev, iparam;
+
+  // only proceed if meshblock contains target Lagrangian coordinate
   if ( x0_t > x0_min && x0_t < x0_max ) {
+
+    // find mass coordinate
     for (int i=pmb->is; i<=pmb->ie; i++) {
       x0 = pmb->pscalars->r(0, 0, 0, i);
-      if ( fabs(x0 - x0_t) < diff ) {
-        diff = fabs(x0 - x0_t);
-        rho_t = pmb->phydro->w(IDN, 0, 0, i);
-      }
+      rho = pmb->phydro->w(IDN, 0, 0, i);
+      if ( x0 > x0_t ) break;
+      x0_prev = x0;
+      rho_prev = rho;
     }
+
+    // interpolate value
+    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
+    rho_t = rho_prev * (1.0 - iparam) + rho * iparam;
+
   }
+
   return rho_t;
 }
 
-template <int n10ths>
-Real calc10thTemp(MeshBlock *pmb, int iout) {
-  constexpr Real x0_arr[] = {
-    0.132728, 0.176674, 0.213271, 0.247949, 0.283294,
-    0.321520, 0.365572, 0.421027, 0.503631, 1.000000
-  }; // from spherical polytrope
-  const Real x0_t = x0_arr[n10ths];
+template <int idx>
+Real calcPresLag(MeshBlock *pmb, int iout) {
+  
+  // initialize variables
+  const Real x0_t = tde->x0_t_list[idx];
   Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
   Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
-  Real temp_t = 0.0, diff = x0_max - x0_min, x0;
-  Real rho_t = 0.0, pres_t = 0.0;
+  Real pres = 0.0;
+  Real pres_prev = 0.0;
+  Real pres_t = 0.0;
+  Real x0, x0_prev, iparam;
+
+  // only proceed if meshblock contains target Lagrangian coordinate
   if ( x0_t > x0_min && x0_t < x0_max ) {
+
+    // find mass coordinate
     for (int i=pmb->is; i<=pmb->ie; i++) {
       x0 = pmb->pscalars->r(0, 0, 0, i);
-      if ( fabs(x0 - x0_t) < diff ) {
-        diff = fabs(x0 - x0_t);
-        rho_t = pmb->phydro->w(IDN, 0, 0, i);
-        pres_t = pmb->phydro->w(IPR, 0, 0, i);
-        temp_t = pmb->peos->TempFromRhoP(rho_t, pres_t);
-      }
+      pres = pmb->phydro->w(IPR, 0, 0, i);
+      if ( x0 > x0_t ) break;
+      x0_prev = x0;
+      pres_prev = pres;
     }
+
+    // interpolate value
+    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
+    pres_t = pres_prev * (1.0 - iparam) + pres * iparam;
+
   }
+
+  return pres_t;
+}
+
+template <int idx>
+Real calcTempLag(MeshBlock *pmb, int iout) {
+  
+  // initialize variables
+  const Real x0_t = tde->x0_t_list[idx];
+  Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
+  Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
+  Real temp = 0.0;
+  Real temp_prev = 0.0;
+  Real temp_t = 0.0;
+  Real rho, pres;
+  Real x0, x0_prev, iparam;
+
+  // only proceed if meshblock contains target Lagrangian coordinate
+  if ( x0_t > x0_min && x0_t < x0_max ) {
+
+    // find mass coordinate
+    for (int i=pmb->is; i<=pmb->ie; i++) {
+      x0 = pmb->pscalars->r(0, 0, 0, i);
+      rho = pmb->phydro->w(IDN, 0, 0, i);
+      pres = pmb->phydro->w(IPR, 0, 0, i);
+      temp = pmb->peos->TempFromRhoP(rho, pres);
+      if ( x0 > x0_t ) break;
+      x0_prev = x0;
+      temp_prev = temp;
+    }
+
+    // interpolate value
+    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
+    temp_t = temp_prev * (1.0 - iparam) + temp * iparam;
+
+  }
+
   return temp_t;
 }
 
+template <int idx>
+void EnrollCalcCoord(Mesh *pmy_mesh, int num_out) {
+  std::ostringstream label;
+  label << "z" << idx;
+  pmy_mesh->EnrollUserHistoryOutput(num_out-1 + idx, calcCoordLag<idx>, label.str().c_str(), UserHistoryOperation::max);
+  EnrollCalcCoord<idx-1>(pmy_mesh, num_out);
+}
+
+template <>
+void EnrollCalcCoord<0>(Mesh *pmy_mesh, int num_out) {}
+
+template <int idx>
+void EnrollCalcRho(Mesh *pmy_mesh, int num_out) {
+  std::ostringstream label;
+  label << "rho" << idx;
+  pmy_mesh->EnrollUserHistoryOutput(num_out-1 + idx, calcRhoLag<idx>, label.str().c_str(), UserHistoryOperation::max);
+  EnrollCalcRho<idx-1>(pmy_mesh, num_out);
+}
+
+template <>
+void EnrollCalcRho<0>(Mesh *pmy_mesh, int num_out) {}
+
+template <int idx>
+void EnrollCalcPres(Mesh *pmy_mesh, int num_out) {
+  std::ostringstream label;
+  label << "pres" << idx;
+  pmy_mesh->EnrollUserHistoryOutput(num_out-1 + idx, calcPresLag<idx>, label.str().c_str(), UserHistoryOperation::max);
+  EnrollCalcPres<idx-1>(pmy_mesh, num_out);
+}
+
+template <>
+void EnrollCalcPres<0>(Mesh *pmy_mesh, int num_out) {}
+
+template <int idx>
+void EnrollCalcTemp(Mesh *pmy_mesh, int num_out) {
+  std::ostringstream label;
+  label << "temp" << idx;
+  pmy_mesh->EnrollUserHistoryOutput(num_out-1 + idx, calcTempLag<idx>, label.str().c_str(), UserHistoryOperation::max);
+  EnrollCalcTemp<idx-1>(pmy_mesh, num_out);
+}
+
+template <>
+void EnrollCalcTemp<0>(Mesh *pmy_mesh, int num_out) {}
+
 void Mesh::InitUserMeshData(ParameterInput *pin) {
 
-  AllocateUserHistoryOutput(5);
+  constexpr int num_out = 11;
+  AllocateUserHistoryOutput(num_out + 12 + 12 + 12 + 12);
   EnrollUserHistoryOutput(0, calcRstarOut, "r_star", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, calcTauOut, "tau", UserHistoryOperation::max);
   EnrollUserHistoryOutput(2, calcAreaOut, "area", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(3, calcRhoMaxOut, "rho_max", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(4, calcPresMaxOut, "pres_max", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(5, calcRhoCOut, "rho_c", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(6, calcTempCOut, "temp_c", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(7, calc10thCoord<0>, "z1t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(8, calc10thCoord<1>, "z2t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(9, calc10thCoord<2>, "z3t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(10, calc10thCoord<3>, "z4t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(11, calc10thCoord<4>, "z5t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(12, calc10thCoord<5>, "z6t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(13, calc10thCoord<6>, "z7t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(14, calc10thCoord<7>, "z8t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(15, calc10thCoord<8>, "z9t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(16, calc10thRho<0>, "rho1t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(17, calc10thRho<1>, "rho2t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(18, calc10thRho<2>, "rho3t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(19, calc10thRho<3>, "rho4t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(20, calc10thRho<4>, "rho5t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(21, calc10thRho<5>, "rho6t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(22, calc10thRho<6>, "rho7t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(23, calc10thRho<7>, "rho8t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(24, calc10thRho<8>, "rho9t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(25, calc10thTemp<0>, "temp1t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(26, calc10thTemp<1>, "temp2t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(27, calc10thTemp<2>, "temp3t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(28, calc10thTemp<3>, "temp4t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(29, calc10thTemp<4>, "temp5t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(30, calc10thTemp<5>, "temp6t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(31, calc10thTemp<6>, "temp7t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(32, calc10thTemp<7>, "temp8t", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(33, calc10thTemp<8>, "temp9t", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(3, calcRhoC, "rho_c", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(4, calcPresC, "pres_c", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(5, calcTempC, "temp_c", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(6, calcEdotTide, "Edot_tide", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(7, calcEdotGrav, "Edot_grav", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(8, calcEdotArea, "Edot_area", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(9, calcEkin, "Ekin", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(10, calcEth, "Eth", UserHistoryOperation::sum);
+  EnrollCalcCoord<12>(this, num_out);
+  EnrollCalcRho<12>(this, num_out + 12);
+  EnrollCalcPres<12>(this, num_out + 12 + 12);
+  EnrollCalcTemp<12>(this, num_out + 12 + 12 + 12);
   EnrollUserExplicitSourceFunction(tdeSrcFunc);
 
   return;
@@ -507,7 +692,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   tde->beta_start = tde->beta * pin->GetOrAddReal("problem", "r_start", 1.0);
   tde->tau_max = acosh(sqrt(tde->beta));
   tde->gamg = pin->GetOrAddReal("hydro", "gamma", 5.0/3.0);
-  tde->mu = pin->GetOrAddReal("hydro", "mu", 0.6);
 
   Real gamma_gas = pin->GetOrAddReal("hydro", "gamma", 5.0/3.0);
   Real dxi, xi;
@@ -528,8 +712,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // compute the central density, scale length, and entropy
   dxi = tde->R_star / 1.0e6;
   xi = dxi;
-  le.th = 1.0;
-  le.phi = 0.0;
+  le.th = 1.0 - 1.0/6.0 * dxi;
+  le.phi = -1.0/3.0 * dxi*dxi*dxi;
   while ( le.th >= 0.0 ) { 
     rk4<decltype(calcLaneEmden), laneEmden>(calcLaneEmden, dxi, xi, le);
   }
@@ -546,8 +730,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   dxi = tde->R_star / tde->alpha / static_cast<Real>(tde->num_le - 1);
   tde->rho_star(0) = tde->rho_c;
   tde->accel_grav(0) = 0.0;
-  le.th = 1.0;
-  le.phi = 0.0;
+  le.th = 1.0 - 1.0/6.0 * dxi;
+  le.phi = -1.0/3.0 * dxi*dxi*dxi;
   for ( int i=1; i<tde->num_le; i++ ) {
     xi = dxi + static_cast<Real>(i) * dxi;
     tde->rho_star(i) = tde->rho_c * std::pow(fmax(le.th, 0.0), tde->n);
@@ -559,6 +743,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   tde->num_tau = 16384;
   tde->area.NewAthenaArray(tde->num_tau);
   tde->areadot.NewAthenaArray(tde->num_tau);
+  if ( tde->n == 1.5 ) {
+    tde->x0_t_list = {
+      0.2680, 0.3489, 0.4120, 0.4680, 0.5212, 
+      0.5745, 0.6306, 0.6937, 0.7738, 0.8311,
+      0.9128, 0.9656
+    };
+  } else if ( tde->n == 3.0 ) {
+    tde->x0_t_list = {
+      0.1327, 0.1767, 0.2133, 0.2479, 0.2833,
+      0.3215, 0.3656, 0.4210, 0.5036, 0.5748,
+      0.7057, 0.8294
+    };
+  }
 
   // compute the affine model
   dtau = 2.0 * tde->tau_max / static_cast<Real>(tde->num_tau - 1);
@@ -573,6 +770,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
     // compute the star density and pressure
     Real x = pcoord->x1v(i);
+    Real dx = pcoord->x1f(i+1) - pcoord->x1f(i);
     Real rho = interp(x / tde->R_star, tde->num_le, 0.0, 1.0, tde->rho_star);
     Real pres = tde->K * std::pow(rho, tde->gamp);
 

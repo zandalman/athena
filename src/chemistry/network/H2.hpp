@@ -1,5 +1,5 @@
-#ifndef CHEMISTRY_NETWORK_H2_HPP_
-#define CHEMISTRY_NETWORK_H2_HPP_
+#ifndef CHEMISTRY_NETWORK_RP_HPP_
+#define CHEMISTRY_NETWORK_RP_HPP_
 //========================================================================================
 // Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
@@ -63,4 +63,4 @@ class ChemNetwork : public NetworkWrapper {
   Real kcr_;   // CRIR for H2 = 3*xi_cr_
   Real nH_;    // density, updated at InitializeNextStep from hydro variable
 };
-#endif // CHEMISTRY_NETWORK_H2_HPP_
+#endif // CHEMISTRY_NETWORK_RP_HPP_

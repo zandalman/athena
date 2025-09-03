@@ -48,12 +48,13 @@ class EosTable {
  public:
   explicit EosTable(ParameterInput *pin);
 
-  InterpTable2D table;
+  InterpTable2D table1;
+  InterpTable2D table2;
   Real logRhoMin, logRhoMax;
-  Real logEgasMin, logEgasMax;
-  Real rhoUnit, eUnit, hUnit;
-  int nRho, nEgas, nVar;
-  AthenaArray<Real> EosRatios;
+  Real logEpsMin, logEpsMax;
+  Real logPorMin, logPorMax;
+  Real rhoUnit, egasUnit;
+  int nVar1, nVar2, nRho, nEps, nPor;
 };
 
 #endif //UTILS_INTERP_TABLE_HPP_

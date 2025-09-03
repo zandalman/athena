@@ -242,7 +242,8 @@ void tdeSrcFunc(
 ) {
   
   // initialize variables
-  Real z, rho, vel, pres, vdot, rhodot, mask, fac;
+  EquationOfState *peos = pmb->peos;
+  Real z, rho, vel, pres, egas, q, vdot, rhodot, mask, fac;
   
   // do interpolation
   int idx;
@@ -260,6 +261,8 @@ void tdeSrcFunc(
     rho = prim(IDN, 0, 0, i);
     vel = prim(IVX, 0, 0, i);
     pres = prim(IPR, 0, 0, i);
+    egas = peos->EgasFromRhoP(rho, pres);
+    q = 1.0 + pres / egas; // d(lnegas)/d(lnrho)|s
     
     // compute time derivatives
     vdot = -z / (r*r*r);
@@ -273,7 +276,7 @@ void tdeSrcFunc(
     cons(IEN, 0, 0, i) += fac * dt * (
       rho * vel * vdot 
       + 0.5 * vel*vel * rhodot
-      + pres / tde->gm1 * rhodot / rho * (1.0 + tde->gm1) // 1+gm1 factor accounts for d(lnegas)/d(lnrho)|s = 5/3
+      + egas * rhodot / rho * q
     );
     cons_scalar(0, 0, 0, i) += fac * dt * rhodot * mask;
   }
@@ -320,7 +323,7 @@ Real calcEdotTide(MeshBlock *pmb, int iout) {
 Real calcEdotArea(MeshBlock *pmb, int iout) {
   
   // initialize variables
-  Real z, dz, rho, vel, pres, rhodot, mask, fac;
+  Real z, dz, rho, vel, pres, egas, q, rhodot, mask, fac;
   Real Edot = 0.0;
 
   // do interpolation
@@ -340,12 +343,14 @@ Real calcEdotArea(MeshBlock *pmb, int iout) {
     rho = pmb->phydro->w(IDN, 0, 0, i);
     vel = pmb->phydro->w(IVX, 0, 0, i);
     pres = pmb->phydro->w(IPR, 0, 0, i);
+    egas = pmb->peos->EgasFromRhoP(rho, pres);
+    q = 1.0 + pres / egas;
 
     // compute Edot
     rhodot = -rho * areadot / area;
     mask = pmb->pscalars->r(0, 0, 0, i);
     fac = exp(-(1.0 - mask) / 0.02);
-    Edot += -fac * dz * rhodot * (0.5 * vel*vel + pres / rho / tde->gm1 * (1.0 + tde->gm1));
+    Edot += -fac * dz * rhodot * (0.5 * vel*vel + egas / rho * q);
   }
   return Edot;
 }
@@ -369,12 +374,14 @@ Real calcEkin(MeshBlock *pmb, int iout) {
 //! \fn Real calcEth(MeshBlock *pmb, int iout)
 //! \brief calcEth: Calculate the total thermal energy.
 Real calcEth(MeshBlock *pmb, int iout) {
-  Real dx, pres;
+  EquationOfState *peos = pmb->peos;
+  Real dx, rho, pres;
   Real Eth = 0.0;
   for (int i=pmb->is; i<=pmb->ie; i++) {
     dx = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
     pres = pmb->phydro->w(IPR, 0, 0, i);
-    Eth += dx * pres / tde->gm1;
+    Eth += dx * peos->EgasFromRhoP(rho, pres);
   }
   return Eth;
 }
@@ -391,6 +398,16 @@ Real calcRhoC(MeshBlock *pmb, int iout) {
 //! \brief calcRhoC: Calculate the central pressure.
 Real calcPresC(MeshBlock *pmb, int iout) {
   return pmb->phydro->w(IPR, 0, 0, 0);
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real calcRhoC(MeshBlock *pmb, int iout)
+//! \brief calcRhoC: Calculate the central pressure.
+Real calcGamC(MeshBlock *pmb, int iout) {
+  EquationOfState *peos = pmb->peos;
+  Real rho = pmb->phydro->w(IDN, 0, 0, 0);
+  Real pres = pmb->phydro->w(IPR, 0, 0, 0);
+  return peos->AsqFromRhoP(rho, pres) * rho / pres;
 }
 
 //----------------------------------------------------------------------------------------
@@ -536,7 +553,7 @@ void EnrollCalcPres<0>(Mesh *pmy_mesh, int num_out) {}
 void Mesh::InitUserMeshData(ParameterInput *pin) {
 
   constexpr int num_out = 6;
-  AllocateUserHistoryOutput(num_out + 18 + 18 + 18);
+  AllocateUserHistoryOutput(num_out + 18 + 18 + 18 + 1);
   EnrollUserHistoryOutput(0, calcRhoC, "rho_c", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, calcPresC, "pres_c", UserHistoryOperation::max);
   EnrollUserHistoryOutput(2, calcEdotTide, "Edot_tide", UserHistoryOperation::sum);
@@ -546,6 +563,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   EnrollCalcCoord<18>(this, num_out);
   EnrollCalcRho<18>(this, num_out + 18);
   EnrollCalcPres<18>(this, num_out + 18 + 18);
+  EnrollUserHistoryOutput(num_out + 18 + 18 + 18, calcGamC, "gam1_c", UserHistoryOperation::max);
   EnrollUserExplicitSourceFunction(tdeSrcFunc);
 
   return;
@@ -666,7 +684,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   int idx;
   Real iparam, z, dz, exp_floor;
-  Real rho, pres, vel, mask;
+  Real rho, pres, vel, egas, mask;
   Real dz_floor = 0.02 * z_slice;
   tde->mtot = 0.0;
 
@@ -676,8 +694,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     z = pcoord->x1v(i);
     dz = pcoord->x1f(i+1) - pcoord->x1f(i);
     calcIparam(z, num_le, r_sl, idx, iparam);
-    rho = interp(idx, iparam, rho_sl);
-    pres = K0 * std::pow(rho, gam);
+    rho = std::fmax(interp(idx, iparam, rho_sl), tde->dfloor);
+    pres = std::fmax(K0 * std::pow(rho, gam), tde->pfloor);
+    egas = peos->EgasFromRhoP(rho, pres);
     vel = Hdot0 / H0 * z;
     mask = 1.0;
 
@@ -685,6 +704,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       exp_floor = exp(-(z - z_cutoff) / dz_floor);
       // rho = tde->dfloor + (cutoff * rho_sl(0) - tde->dfloor) * exp_floor;
       // pres = K0 * std::pow(rho, gam);
+      // egas = peos->EgasFromRhoP(rho, pres);
       vel = Hdot0 / H0 * z * exp_floor;
       mask = exp_floor;
     } else {
@@ -696,11 +716,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     phydro->u(IM1, 0, 0, i) = rho * vel;
     phydro->u(IM2, 0, 0, i) = 0.0;
     phydro->u(IM3, 0, 0, i) = 0.0;
-    phydro->u(IEN, 0, 0, i) = 0.5 * rho * vel*vel + pres / tde->gm1;
+    phydro->u(IEN, 0, 0, i) = 0.5 * rho * vel*vel + egas;
 
     // set the initial passive scalars
     pscalars->s(0, 0, 0, i) = rho * mask; // floor mask
-}
+  }
 
   return;
 }

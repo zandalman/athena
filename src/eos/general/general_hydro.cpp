@@ -57,6 +57,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) :
     energy_floor_ = pressure_floor_/(pin->GetOrAddReal("hydro", "gamma", 2.) - 1.);
     pin->SetReal("hydro", "efloor", energy_floor_);
   }
+
+  std::cout << EOS_TABLE_ENABLED << std::endl;
+  
   if (EOS_TABLE_ENABLED) {
     if (!ptable) {
       std::stringstream msg;
