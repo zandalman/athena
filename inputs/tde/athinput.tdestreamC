@@ -19,11 +19,11 @@ dt         = 0.01      # time increment between outputs
 <time>
 cfl_number =             0.3  # CFL number
 nlim       =              -1  # cycle limit
-tlim       =      17.2861136  # cycle limit
+tlim       =      17.0771553  # cycle limit
 integrator =             vl2  # time integration algorithm
 xorder     =               2  # order of spatial reconstruction
 ncycle_out =               1  # interval for stdout summary info
-start_time =     -17.2861136  # time of simulation start
+start_time =     -17.0771553  # time of simulation start
 
 <mesh>
 nx1        = 16384         # Number of zones in X1-direction
@@ -31,7 +31,7 @@ x1min      = 0.0          # minimum value of X1
 x1max      = 0.50         # maximum value of X1
 ix1_bc     = reflecting   # inner-X1 boundary flag
 ox1_bc     = outflow      # outer-X1 boundary flag
-x1rat       = 1.00052     # ratio between neighboring cells
+x1rat      = 1.00057     # ratio between neighboring cells
 
 nx2        = 1         # Number of zones in X2-direction
 x2min      = -0.5      # minimum value of X2
@@ -62,23 +62,23 @@ Q       =         1000000  # BH-to-star mass ratio
 beta    =               2  # penetration factor
 Mstar   =           1e-06  # star mass
 Rstar   =            0.02  # star radius
-Rslice  =    0.0315465537  # stream slice radius
-rho0    =  0.000223643279  # affine model initial density
-x0      =     -8.16883946  # initial x-coordinate
-y0      =     -5.76801461  # initial y-coordinate
-vx0     =     0.415189084  # initial x-velocity
-vy0     =     0.123097799  # initial y-velocity
-lam0    =    0.0218787821  # initial longitudinal stretching
-Om0     =   0.00741651078  # initial angular frequency
-alpha0  =      6.57136583  # initial orientation
-L0      =      2107.88117  # initial longitudinal size
-H0      =      6.51167302  # initial vertical size
-Hdot0   =    -0.170385717  # initial vertical stretching
-Dlt0    =      6.63176216  # initial horizontal size
-Dltdot0 =    -0.163881458  # initial horizontal stretching
-vpar0   =    0.0491105384  # initial in-plane shear
-temp0   =       3037.1623  # initial temperature
-K0      =   0.00259537181  # initial entropy
+Rslice  =    0.0321016643  # stream slice radius
+rho0    =   0.00151320843  # affine model initial density
+x0      =     -8.06856683  # initial x-coordinate
+y0      =     -5.90756632  # initial y-coordinate
+vx0     =     0.421136727  # initial x-velocity
+vy0     =     0.134489077  # initial y-velocity
+lam0    =    0.0214408682  # initial longitudinal stretching
+Om0     =   0.00716749755  # initial angular frequency
+alpha0  =      6.59233673  # initial orientation
+L0      =      121693.296  # initial longitudinal size
+H0      =      10.6911338  # initial vertical size
+Hdot0   =    -0.281169843  # initial vertical stretching
+Dlt0    =      12.7180474  # initial horizontal size
+Dltdot0 =    -0.310288043  # initial horizontal stretching
+vpar0   =    0.0912445335  # initial in-plane shear
+temp0   =       2958.3133  # initial temperature
+K0      =    0.0105796014  # initial entropy
 
 <units>
 unit_system = custom

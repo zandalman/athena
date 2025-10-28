@@ -51,11 +51,17 @@ struct pgentde {
   int num_le;      // Number of samples for Lane-Emden equation
   int num_tau;     // Number of samples for affine model evolution
   Real tau_max;    // Maximum dimensionless time
-  std::array<Real, 12> x0_t_list;  // mass coordinates at which to record outputs
-  AthenaArray<Real> rho_star;   // Stellar density profile
-  AthenaArray<Real> accel_grav; // Stellar gravitational field profile
-  AthenaArray<Real> area;       // Area factor
-  AthenaArray<Real> areadot;    // Area factor derivative
+  std::array<Real, 12> mfrac_list; // Mass coordinates at which to record outputs
+  Real mtot;                       // Total mass
+  AthenaArray<Real> rho_star;      // Stellar density profile
+  AthenaArray<Real> accel_grav;    // Stellar gravitational field profile
+  AthenaArray<Real> mfrac;         // 1d mass profile
+  AthenaArray<Real> area;          // Area factor
+  AthenaArray<Real> areadot;       // Area factor derivative
+  Real mass_cache;
+  Real r_star_cache;
+  Real area_cache;
+  Real areadot_cache;
 };
 
 pgentde* tde = new pgentde();
@@ -207,37 +213,87 @@ Real calcTau(const Real time, const Real r_star) {
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real interp(const Real x, const int size, const Real xmin, const Real xmax, const AthenaArray<Real> &arr)
-//! \brief interp: Interpolate from an array of values at a given point.
-//! We assume the point array has uniform spacing.
-//! \param x    Interpolation point
-//! \param size Size of the array
-//! \param xmin Minimum value of point array
-//! \param xmax Maximum value of point array
-//! \param arr  Array of values
-//! \return Interpolated value
-Real interp(const Real x, const int size, const Real xmin, const Real xmax, const AthenaArray<Real> &arr) {
-  if ( x <= xmin ) return arr(0); // check if point outside of point array
-  if ( x >= xmax ) return arr(size - 1);
-  const Real dx = (xmax - xmin) / (static_cast<Real>(size) - 1.0);
-  const int idx = static_cast<int>(std::floor((x - xmin) / dx));
-  const Real xlow = xmin + static_cast<Real>(idx) * dx;
-  const Real iparam = (x - xlow) / dx; // interpolation parameter
-  return arr(idx) * (1.0 - iparam) + arr(idx + 1) * iparam;
+//! \fn void calcIparam(const Real x, const int size, const Real xmin, const Real xmax, int &idx, Real &iparam)
+//! \brief calcIparam: Compute the interpolation parameter and index assuming the array of x-values has uniform spacing.
+//! Given an array arry of y-values, the interpolated y-value is 
+//! y = (1.0 - iparam) * arry(idx) + iparam * arry(idx+1)
+//! \param x       The x-value to interpolate
+//! \param size    The size of the array
+//! \param xmin    The minimum x-value
+//! \param xmax    The maximum x-value
+//! \param idx     The interpolation index
+//! \param iparam  The interpolation parameter
+void calcIparam(const Real x, const int size, const Real xmin, const Real xmax, int &idx, Real &iparam) {
+  Real dx, xlow;
+  if ( x <= xmin ) {
+    // clamp values below array range
+    idx = 0, iparam = 0.0;
+  } else if ( x >= xmax ) {
+    // clamp values above array range
+    idx = size - 2, iparam = 1.0;
+  } else {
+    dx = (xmax - xmin) / (static_cast<Real>(size) - 1.0);
+    idx = static_cast<int>(std::floor((x - xmin) / dx));
+    xlow = xmin + static_cast<Real>(idx) * dx;
+    iparam = (x - xlow) / dx; // interpolation parameter
+  }
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real logAreaDot(const Real tau, const Real r_star)
-//! \brief logAreaDot: Compute the time derivative of the log area factor.
-//! \param tau    Dimensionless time
-//! \param r_star Radial coordinate of the star
-//! \return Time derivative of the log area factor
-Real logAreaDot(const Real tau, const Real r_star) {
-  Real area = interp(tau, tde->num_tau, -tde->tau_max, tde->tau_max, tde->area);
-  Real dtau_dt = sqrt(tde->G * tde->M_BH / (2.0 * r_star*r_star*r_star));
-  Real darea_dtau = interp(tau, tde->num_tau, -tde->tau_max, tde->tau_max, tde->areadot);
-  Real areadot = darea_dtau * dtau_dt;
-  return areadot / area;
+//! \fn void calcIparam(const Real x, const int size, const AthenaArray<Real> &arrx, int &idx, Real &iparam)
+//! \brief calcIparam: Compute the interpolation parameter and index using a binary search.
+//! Given an array arry of y-values, the interpolated y-value is 
+//! y = (1.0 - iparam) * arry(idx) + iparam * arry(idx+1)
+//! \param x       The x-value to interpolate
+//! \param size    The size of the array
+//! \param arrx    The array of x-values to interpolate
+//! \param idx     The interpolation index
+//! \param iparam  The interpolation parameter
+void calcIparam2(const Real x, const int size, const AthenaArray<Real> &arrx, int &idx, Real &iparam) {
+  if ( x <= arrx(0) ) {
+    // clamp values below array range
+    idx = 0, iparam = 0.0;
+  } else if ( x >= arrx(size - 1)) {
+    // clamp values above array range
+    idx = size - 2, iparam = 1.0;
+  } else {
+    // binary search
+    idx = 0;
+    int right = size - 1, mid;
+    while ( right - idx > 1 ) {
+      mid = (idx + right) / 2;
+      if ( arrx(mid) <= x ) idx = mid;
+      else right = mid;
+    }
+    // calculate interpolation parameter
+    iparam = (x - arrx(idx)) / (arrx(idx+1) - arrx(idx));
+  }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real interp(const int idx, const Real iparam, const AthenaArray<Real> &arry)
+//! \brief interp: Interpolate an array.
+//! \param idx    The interpolation index
+//! \param iparam The interpolation parameter
+//! \param arry   The array of y-values
+//! \return The interpolated y-value
+Real interp(const int idx, const Real iparam, const AthenaArray<Real> &arry) {
+  return arry(idx) + iparam * (arry(idx+1) - arry(idx));
+}
+
+Real calcMassIn(MeshBlock *pmb, const AthenaArray<Real> &prim, const AthenaArray<Real> &prim_scalar) {
+  Real z, dz, rho, mask;
+  Real mass_loc = 0.0, mass_in;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = prim(IDN, 0, 0, i);
+    mask = prim_scalar(0, 0, 0, i);
+    mass_loc += mask * rho * dz;
+  }
+  MPI_Exscan(&mass_loc, &mass_in, 1, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+  if ( Globals::my_rank == 0 ) mass_in = 0.0;
+  return mass_in;
 }
 
 //----------------------------------------------------------------------------------------
@@ -256,42 +312,64 @@ void tdeSrcFunc(
 ) {
   
   // initialize variables
-  Real z, x0oR, rho, vel, pres, temp, egas, vdot, rhodot, q;
   EquationOfState *peos = pmb->peos;
+  Real z, dz, rho, vel, pres, temp, egas, vdot, rhodot, q, mask, mfrac, fac;
   
   // calculate affine model parameters
+  int idx;
+  Real iparam;
   Real r_star = calcOrbit(time);
   Real tau = calcTau(time, r_star);
-  Real logrhodot = r_star < tde->r_t ? -logAreaDot(tau, r_star) : 0.0;
+  Real dtau_dt = sqrt(tde->G * tde->M_BH / (2.0 * r_star*r_star*r_star));
+  calcIparam(tau, tde->num_tau, -tde->tau_max, tde->tau_max, idx, iparam);
+  Real area = interp(idx, iparam, tde->area);
+  Real darea_dtau = interp(idx, iparam, tde->areadot);
+  Real areadot = darea_dtau * dtau_dt;
+  Real logrhodot = r_star < tde->r_t ? -areadot / area : 0.0;
+  Real mass = calcMassIn(pmb, prim, prim_scalar);
+
+  // cache values for history outputs
+  tde->r_star_cache = r_star;
+  tde->area_cache = area;
+  tde->areadot_cache = areadot;
+  tde->mass_cache = mass;
 
   for (int i=pmb->is; i<=pmb->ie; i++) {
 
     // get primatives
     z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
     rho = prim(IDN, 0, 0, i);
     vel = prim(IVX, 0, 0, i);
     pres = prim(IPR, 0, 0, i);
     egas = pmb->peos->EgasFromRhoP(rho, pres);
-    q = 1.0 + pres / egas; // d(lnegas)/d(lnrho)|s
-    x0oR = pmb->pscalars->r(0, 0, 0, i);
+    q = 1.0; // + pres / egas; // d(lnegas)/d(lnrho)|s
+    mask = prim_scalar(0, 0, 0, i);
+    mass += mask * rho * dz;
+    mfrac = mass * area / tde->mtot;
+    fac = exp(-(1.0 - mask) / 0.005);
 
-    // compute time derivatives
-    vdot = -tde->G * tde->M_BH * z / (r_star*r_star*r_star);       // tides
-    vdot += -interp(x0oR, tde->num_le, 0.0, 1.0, tde->accel_grav); // self-gravity
+    // tides
+    vdot = -tde->G * tde->M_BH * z / (r_star*r_star*r_star);
+    
+    // self-gravity
+    calcIparam2(mfrac, tde->num_le, tde->mfrac, idx, iparam);
+    vdot += -interp(idx, iparam, tde->accel_grav);
+    
+    // in-plane stretching
     rhodot = rho * logrhodot;
 
     // add source terms
-    cons(IDN, 0, 0, i) += dt * rhodot;
-    cons(IM1, 0, 0, i) += dt * (rho * vdot + vel * rhodot);
-    cons(IEN, 0, 0, i) += dt * (
+    cons(IDN, 0, 0, i) += fac * dt * rhodot;
+    cons(IM1, 0, 0, i) += fac * dt * (rho * vdot + vel * rhodot);
+    cons(IEN, 0, 0, i) += fac * dt * (
       rho * vel * vdot 
       + 0.5 * vel*vel * rhodot
       + egas * rhodot / rho * q // extra factor accounts for d(lneps)/d(lnrho)|s
     );
-    for (int iscal=0; iscal<NSCALARS; iscal++) {
-      cons_scalar(iscal, 0, 0, i) += dt * rhodot * prim_scalar(iscal, 0, 0, i);
-    }
+    cons_scalar(0, 0, 0, i) += fac * dt * rhodot * mask;
   }
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -299,13 +377,12 @@ void tdeSrcFunc(
 //! \brief calcEdotTide: Calculate the energy source term contribution from tides.
 Real calcEdotTide(MeshBlock *pmb, int iout) {
   
-  // initialize variables
-  Real z, dz, rho, vel, vdot;
-  Real Edot = 0.0;
+  // retrieve cached values
+  Real r_star = tde->r_star_cache;
   
-  // calculate affine model parameters
-  Real time = pmb->pmy_mesh->time;
-  Real r_star = calcOrbit(time);
+  // initialize variables
+  Real z, dz, rho, vel, vdot, mask, fac;
+  Real Edot = 0.0;
 
   // loop over cells
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -318,7 +395,9 @@ Real calcEdotTide(MeshBlock *pmb, int iout) {
 
     // compute Edot
     vdot = -tde->G * tde->M_BH * z / (r_star*r_star*r_star);
-    Edot += -dz * rho * vel * vdot;
+    mask = pmb->pscalars->r(0, 0, 0, i);
+    fac = exp(-(1.0 - mask) / 0.02);
+    Edot += -fac * dz * rho * vel * vdot;
   }
   return Edot;
 }
@@ -328,8 +407,14 @@ Real calcEdotTide(MeshBlock *pmb, int iout) {
 //! \brief calcEdotGrav: Calculate the energy source term contribution from self-gravity.
 Real calcEdotGrav(MeshBlock *pmb, int iout) {
   
+  // retreive cached values
+  Real area = tde->area_cache;
+  Real mass = tde->mass_cache;
+  
   // initialize variables
-  Real z, dz, rho, vel, vdot, x0oR;
+  int idx;
+  Real iparam;
+  Real z, dz, rho, vel, vdot, mask, mfrac, fac;
   Real Edot = 0.0;
 
   // loop over cells
@@ -340,11 +425,15 @@ Real calcEdotGrav(MeshBlock *pmb, int iout) {
     dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
     rho = pmb->phydro->w(IDN, 0, 0, i);
     vel = pmb->phydro->w(IVX, 0, 0, i);
-    x0oR = pmb->pscalars->r(0, 0, 0, i);
+    mask = pmb->pscalars->r(0, 0, 0, i);
+    mass += mask * rho * dz;
+    mfrac = mass * area / tde->mtot;
+    fac = exp(-(1.0 - mask) / 0.005);
 
     // compute Edot
-    vdot = -interp(x0oR, tde->num_le, 0.0, 1.0, tde->accel_grav);
-    Edot += -dz * rho * vel * vdot;
+    calcIparam2(mfrac, tde->num_le, tde->mfrac, idx, iparam);
+    vdot = -interp(idx, iparam, tde->accel_grav);
+    Edot += -fac * dz * rho * vel * vdot;
   }
   return Edot;
 }
@@ -354,15 +443,15 @@ Real calcEdotGrav(MeshBlock *pmb, int iout) {
 //! \brief calcEdotArea: Calculate the energy source term contribution from in-plane stretching.
 Real calcEdotArea(MeshBlock *pmb, int iout) {
   
+  // retreive cached values
+  Real r_star = tde->r_star_cache;
+  Real area = tde->area_cache;
+  Real areadot = tde->areadot_cache;
+  
   // initialize variables
-  Real z, dz, rho, vel, pres, egas, q, rhodot;
+  Real z, dz, rho, vel, pres, egas, q, rhodot, mask, fac;
   Real Edot = 0.0;
-
-  // calculate affine model parameters
-  Real time = pmb->pmy_mesh->time;
-  Real r_star = calcOrbit(time);
-  Real tau = calcTau(time, r_star);
-  Real logrhodot = r_star < tde->r_t ? -logAreaDot(tau, r_star) : 0.0;
+  Real logrhodot = r_star < tde->r_t ? -areadot / area : 0.0;
 
   // loop over cells
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -374,11 +463,13 @@ Real calcEdotArea(MeshBlock *pmb, int iout) {
     vel = pmb->phydro->w(IVX, 0, 0, i);
     pres = pmb->phydro->w(IPR, 0, 0, i);
     egas = pmb->peos->EgasFromRhoP(rho, pres);
-    q = 1.0 + pres / egas;
+    q = 1.0; // + pres / egas;
+    mask = pmb->pscalars->r(0, 0, 0, i);
+    fac = exp(-(1.0 - mask) / 0.005);
 
     // compute Edot
     rhodot = rho * logrhodot;
-    Edot += -dz * rhodot * (0.5 * vel*vel + egas / rho * q);
+    Edot += -fac * dz * rhodot * (0.5 * vel*vel + egas / rho * q);
   }
   return Edot;
 }
@@ -387,13 +478,13 @@ Real calcEdotArea(MeshBlock *pmb, int iout) {
 //! \fn Real calcEkin(MeshBlock *pmb, int iout)
 //! \brief calcEkin: Calculate the total kinetic energy.
 Real calcEkin(MeshBlock *pmb, int iout) {
-  Real dx, rho, vel;
+  Real dz, rho, vel;
   Real Ekin = 0.0;
   for (int i=pmb->is; i<=pmb->ie; i++) {
-    dx = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
     rho = pmb->phydro->w(IDN, 0, 0, i);
     vel = pmb->phydro->w(IVX, 0, 0, i);
-    Ekin += dx * 0.5 * rho * vel*vel;
+    Ekin += dz * 0.5 * rho * vel*vel;
   }
   return Ekin;
 }
@@ -403,13 +494,13 @@ Real calcEkin(MeshBlock *pmb, int iout) {
 //! \brief calcEth: Calculate the total thermal energy.
 Real calcEth(MeshBlock *pmb, int iout) {
   EquationOfState *peos = pmb->peos;
-  Real dx, rho, pres;
+  Real dz, rho, pres;
   Real Eth = 0.0;
   for (int i=pmb->is; i<=pmb->ie; i++) {
-    dx = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
     rho = pmb->phydro->w(IDN, 0, 0, i);
     pres = pmb->phydro->w(IPR, 0, 0, i);
-    Eth += dx * peos->EgasFromRhoP(rho, pres);
+    Eth += dz * peos->EgasFromRhoP(rho, pres);
   }
   return Eth;
 }
@@ -418,26 +509,42 @@ Real calcEth(MeshBlock *pmb, int iout) {
 //! \fn Real calcRstarOut(MeshBlock *pmb, int iout)
 //! \brief calcRstarOut: Compute the radial coordinate of the star in its parabolic orbit.
 Real calcRstarOut(MeshBlock *pmb, int iout) {
-  return calcOrbit(pmb->pmy_mesh->time);
+
+  // calculate affine model parameters
+  int idx;
+  Real iparam;
+  Real time = pmb->pmy_mesh->time;
+  Real r_star = calcOrbit(time);
+  Real tau = calcTau(time, r_star);
+  Real dtau_dt = sqrt(tde->G * tde->M_BH / (2.0 * r_star*r_star*r_star));
+  calcIparam(tau, tde->num_tau, -tde->tau_max, tde->tau_max, idx, iparam);
+  Real area = interp(idx, iparam, tde->area);
+  Real darea_dtau = interp(idx, iparam, tde->areadot);
+  Real areadot = darea_dtau * dtau_dt;
+  Real logrhodot = r_star < tde->r_t ? -areadot / area : 0.0;
+  Real mass = calcMassIn(pmb, pmb->phydro->w, pmb->pscalars->r);
+
+  // cache values for history outputs
+  tde->r_star_cache = r_star;
+  tde->area_cache = area;
+  tde->areadot_cache = areadot;
+  tde->mass_cache = mass;
+
+  return tde->r_star_cache;
 }
 
 //----------------------------------------------------------------------------------------
 //! \fn Real calcTauOut(MeshBlock *pmb, int iout)
 //! \brief calcTauOut: Compute the dimensionless time.
 Real calcTauOut(MeshBlock *pmb, int iout) {
-  Real time = pmb->pmy_mesh->time;
-  Real r_star = calcOrbit(time);
-  return calcTau(time, r_star);
+  return calcTau(pmb->pmy_mesh->time, tde->r_star_cache);
 }
 
 //----------------------------------------------------------------------------------------
 //! \fn Real calcAreaOut(MeshBlock *pmb, int iout)
 //! \brief calcAreaOut: Compute the in-plane stretching factor.
 Real calcAreaOut(MeshBlock *pmb, int iout) {
-  Real time = pmb->pmy_mesh->time;
-  Real r_star = calcOrbit(time);
-  Real tau = calcTau(time, r_star);
-  return interp(tau, tde->num_tau, -tde->tau_max, tde->tau_max, tde->area);
+  return tde->area_cache;
 }
 
 Real calcRhoC(MeshBlock *pmb, int iout) {
@@ -471,135 +578,114 @@ template <int idx>
 Real calcCoordLag(MeshBlock *pmb, int iout) {
   
   // initialize variables
-  const Real x0_t = tde->x0_t_list[idx];
-  Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
-  Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
-  Real x = 0.0;
-  Real x_prev = 0.0;
-  Real x_t = 0.0;
-  Real x0, x0_prev, iparam;
+  const Real mass_t = tde->mfrac_list[idx - 1] * tde->mtot / tde->area_cache;
+  Real mass_min = tde->mass_cache;
+  Real mass = mass_min;
+  Real mass_prev = mass;
+  Real z_prev = pmb->pcoord->x1v(pmb->is - 1);
+  Real dz, z, rho, iparam;
 
-  // only proceed if meshblock contains target Lagrangian coordinate
-  if ( x0_t >= x0_min && x0_t <= x0_max ) {
-
-    // find mass coordinate
-    for (int i=pmb->is; i<=pmb->ie; i++) {
-      x0 = pmb->pscalars->r(0, 0, 0, i);
-      x = pmb->pcoord->x1v(i);
-      if ( x0 > x0_t ) break;
-      x0_prev = x0;
-      x_prev = x;
+  if ( mass_t < mass_min ) return 0.0;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    mass += rho * dz;
+    if ( mass > mass_t ) {
+      iparam = (mass_t - mass_prev) / (mass - mass_prev);
+      return z_prev * (1.0 - iparam) + z * iparam;
     }
-
-    // interpolate value
-    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
-    x_t = x_prev * (1.0 - iparam) + x * iparam;
-
+    mass_prev = mass;
+    z_prev = z;
   }
-
-  return x_t;
+  return 0.0;
 }
 
 template <int idx>
 Real calcRhoLag(MeshBlock *pmb, int iout) {
   
   // initialize variables
-  const Real x0_t = tde->x0_t_list[idx];
-  Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
-  Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
-  Real rho = 0.0;
-  Real rho_prev = 0.0;
-  Real rho_t = 0.0;
-  Real x0, x0_prev, iparam;
+  const Real mass_t = tde->mfrac_list[idx - 1] * tde->mtot / tde->area_cache;
+  Real mass_min = tde->mass_cache;
+  Real mass = mass_min;
+  Real mass_prev = mass;
+  Real rho_prev = pmb->phydro->w(IDN, 0, 0, pmb->is - 1);
+  Real dz, z, rho, iparam;
 
-  // only proceed if meshblock contains target Lagrangian coordinate
-  if ( x0_t > x0_min && x0_t < x0_max ) {
-
-    // find mass coordinate
-    for (int i=pmb->is; i<=pmb->ie; i++) {
-      x0 = pmb->pscalars->r(0, 0, 0, i);
-      rho = pmb->phydro->w(IDN, 0, 0, i);
-      if ( x0 > x0_t ) break;
-      x0_prev = x0;
-      rho_prev = rho;
+  if ( mass_t < mass_min ) return 0.0;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    mass += rho * dz;
+    if ( mass > mass_t ) {
+      iparam = (mass_t - mass_prev) / (mass - mass_prev);
+      return rho_prev * (1.0 - iparam) + rho * iparam;
     }
-
-    // interpolate value
-    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
-    rho_t = rho_prev * (1.0 - iparam) + rho * iparam;
-
+    mass_prev = mass;
+    rho_prev = rho;
   }
-
-  return rho_t;
+  return 0.0;
 }
 
 template <int idx>
 Real calcPresLag(MeshBlock *pmb, int iout) {
   
   // initialize variables
-  const Real x0_t = tde->x0_t_list[idx];
-  Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
-  Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
-  Real pres = 0.0;
-  Real pres_prev = 0.0;
-  Real pres_t = 0.0;
-  Real x0, x0_prev, iparam;
+  const Real mass_t = tde->mfrac_list[idx - 1] * tde->mtot / tde->area_cache;
+  Real mass_min = tde->mass_cache;
+  Real mass = mass_min;
+  Real mass_prev = mass;
+  Real pres_prev = pmb->phydro->w(IPR, 0, 0, pmb->is - 1);
+  Real dz, z, rho, pres, iparam;
 
-  // only proceed if meshblock contains target Lagrangian coordinate
-  if ( x0_t > x0_min && x0_t < x0_max ) {
-
-    // find mass coordinate
-    for (int i=pmb->is; i<=pmb->ie; i++) {
-      x0 = pmb->pscalars->r(0, 0, 0, i);
-      pres = pmb->phydro->w(IPR, 0, 0, i);
-      if ( x0 > x0_t ) break;
-      x0_prev = x0;
-      pres_prev = pres;
+  if ( mass_t < mass_min ) return 0.0;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    pres = pmb->phydro->w(IPR, 0, 0, i);
+    mass += rho * dz;
+    if ( mass > mass_t ) {
+      iparam = (mass_t - mass_prev) / (mass - mass_prev);
+      return pres_prev * (1.0 - iparam) + pres * iparam;
     }
-
-    // interpolate value
-    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
-    pres_t = pres_prev * (1.0 - iparam) + pres * iparam;
-
+    mass_prev = mass;
+    pres_prev = pres;
   }
-
-  return pres_t;
+  return 0.0;
 }
 
 template <int idx>
 Real calcTempLag(MeshBlock *pmb, int iout) {
   
   // initialize variables
-  const Real x0_t = tde->x0_t_list[idx];
-  Real x0_min = pmb->pscalars->r(0, 0, 0, pmb->is);
-  Real x0_max = pmb->pscalars->r(0, 0, 0, pmb->ie);
-  Real temp = 0.0;
-  Real temp_prev = 0.0;
-  Real temp_t = 0.0;
-  Real rho, pres;
-  Real x0, x0_prev, iparam;
+  const Real mass_t = tde->mfrac_list[idx - 1] * tde->mtot / tde->area_cache;
+  Real mass_min = tde->mass_cache;
+  Real mass = mass_min;
+  Real mass_prev = mass;
+  Real temp_prev = pmb->peos->TempFromRhoP(
+    pmb->phydro->w(IDN, 0, 0, pmb->is - 1),
+    pmb->phydro->w(IPR, 0, 0, pmb->is - 1)
+  );
+  Real dz, z, rho, pres, temp, iparam;
 
-  // only proceed if meshblock contains target Lagrangian coordinate
-  if ( x0_t > x0_min && x0_t < x0_max ) {
-
-    // find mass coordinate
-    for (int i=pmb->is; i<=pmb->ie; i++) {
-      x0 = pmb->pscalars->r(0, 0, 0, i);
-      rho = pmb->phydro->w(IDN, 0, 0, i);
-      pres = pmb->phydro->w(IPR, 0, 0, i);
-      temp = pmb->peos->TempFromRhoP(rho, pres);
-      if ( x0 > x0_t ) break;
-      x0_prev = x0;
-      temp_prev = temp;
+  if ( mass_t < mass_min ) return 0.0;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    z = pmb->pcoord->x1v(i);
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    pres = pmb->phydro->w(IPR, 0, 0, i);
+    temp = pmb->peos->TempFromRhoP(rho, pres);
+    mass += rho * dz;
+    if ( mass > mass_t ) {
+      iparam = (mass_t - mass_prev) / (mass - mass_prev);
+      return temp_prev * (1.0 - iparam) + temp * iparam;
     }
-
-    // interpolate value
-    iparam = (x0_t - x0_prev) / (x0 - x0_prev);
-    temp_t = temp_prev * (1.0 - iparam) + temp * iparam;
-
+    mass_prev = mass;
+    temp_prev = temp;
   }
-
-  return temp_t;
+  return 0.0;
 }
 
 template <int idx>
@@ -678,6 +764,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   std::stringstream msg;
 
+  // floors
+  Real dfloor = pin->GetReal("hydro", "dfloor");
+  Real pfloor = pin->GetReal("hydro", "pfloor");
+
   // populate the TDE struct
   tde->G = pmy_mesh->punit->grav_const_code;
   tde->n = pin->GetOrAddReal("problem", "n_poly", 1.5);
@@ -714,20 +804,27 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   xi = dxi;
   le.th = 1.0 - 1.0/6.0 * dxi;
   le.phi = -1.0/3.0 * dxi*dxi*dxi;
+  tde->mtot = 0.0;
   while ( le.th >= 0.0 ) { 
+    tde->mtot += std::pow(le.th, tde->n);
     rk4<decltype(calcLaneEmden), laneEmden>(calcLaneEmden, dxi, xi, le);
   }
   tde->rho_c = tde->M_star / (4.0 * M_PI * tde->R_star*tde->R_star*tde->R_star) * xi*xi*xi / le.phi;
   tde->alpha = tde->R_star / xi;
   tde->K = 4.0 * M_PI * tde->G * tde->alpha*tde->alpha * std::pow(tde->rho_c, 1.0 - 1.0 / tde->n) / (tde->n + 1.0);
+  tde->mtot *= tde->rho_c * tde->alpha * dxi;
 
   // create arrays for stellar profile
-  tde->num_le = 16384;
+  tde->num_le = 65536;
+  tde->mfrac.NewAthenaArray(tde->num_le);
   tde->rho_star.NewAthenaArray(tde->num_le);
   tde->accel_grav.NewAthenaArray(tde->num_le);
 
   // compute stellar profile
-  dxi = tde->R_star / tde->alpha / static_cast<Real>(tde->num_le - 1);
+  Real cutoff = 1.e-6;
+  Real z_cutoff;
+  dxi = tde->R_star / tde->alpha / static_cast<Real>(tde->num_le);
+  tde->mfrac(0) = 0.0;
   tde->rho_star(0) = tde->rho_c;
   tde->accel_grav(0) = 0.0;
   le.th = 1.0 - 1.0/6.0 * dxi;
@@ -736,6 +833,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     xi = dxi + static_cast<Real>(i) * dxi;
     tde->rho_star(i) = tde->rho_c * std::pow(fmax(le.th, 0.0), tde->n);
     tde->accel_grav(i) = tde->n * tde->gamp * tde->K / tde->alpha * std::pow(tde->rho_c, tde->gamp - 1.0) * le.phi / (xi*xi);
+    tde->mfrac(i) = tde->mfrac(i-1) + tde->rho_c * std::pow(le.th, tde->n) * tde->alpha * dxi / tde->mtot;
+    if ( tde->rho_star(i) < cutoff * tde->rho_star(0) ) z_cutoff = tde->alpha * xi;
     rk4<decltype(calcLaneEmden), laneEmden>(calcLaneEmden, dxi, xi, le);
   }
 
@@ -743,19 +842,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   tde->num_tau = 16384;
   tde->area.NewAthenaArray(tde->num_tau);
   tde->areadot.NewAthenaArray(tde->num_tau);
-  if ( tde->n == 1.5 ) {
-    tde->x0_t_list = {
-      0.2680, 0.3489, 0.4120, 0.4680, 0.5212, 
-      0.5745, 0.6306, 0.6937, 0.7738, 0.8311,
-      0.9128, 0.9656
-    };
-  } else if ( tde->n == 3.0 ) {
-    tde->x0_t_list = {
-      0.1327, 0.1767, 0.2133, 0.2479, 0.2833,
-      0.3215, 0.3656, 0.4210, 0.5036, 0.5748,
-      0.7057, 0.8294
-    };
-  }
+  tde->mfrac_list = {
+    0.10, 0.20, 0.30, 0.40, 0.50, 0.60,
+    0.70, 0.80, 0.90, 0.95, 0.98, 0.99
+  };
 
   // compute the affine model
   dtau = 2.0 * tde->tau_max / static_cast<Real>(tde->num_tau - 1);
@@ -765,33 +855,43 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     tde->areadot(i) = am.dxdotdx0 * am.dydy0 + am.dxdx0 * am.dydotdy0 - am.dxdotdy0 * am.dydx0 - am.dxdy0 * am.dydotdx0;
     rk4<decltype(calcAffineModel), affineModel>(calcAffineModel, dtau, tau, am);
   }
+
+  int idx;
+  Real iparam, z, dz, exp_floor;
+  Real rho, pres, vel, egas, mask;
+  Real dz_floor = 0.005 * tde->R_star;
   
   for (int i=is; i<=ie; i++) {
 
     // compute the star density and pressure
-    Real x = pcoord->x1v(i);
-    Real dx = pcoord->x1f(i+1) - pcoord->x1f(i);
-    Real rho = interp(x / tde->R_star, tde->num_le, 0.0, 1.0, tde->rho_star);
-    Real pres = tde->K * std::pow(rho, tde->gamp);
+    z = pcoord->x1v(i);
+    dz = pcoord->x1f(i+1) - pcoord->x1f(i);
+    calcIparam(z / tde->R_star, tde->num_le, 0.0, 1.0, idx, iparam);
+    rho = std::fmax(interp(idx, iparam, tde->rho_star), dfloor);
+    pres = std::fmax(tde->K * std::pow(rho, tde->gamp), pfloor);
+    egas = peos->EgasFromRhoP(rho, pres);
+    mask = 1.0;
 
     // compute the ambient medium density and pressure
-    Real dfloor = 1.0e-4 / pmy_mesh->punit->code_density_cgs;
-    Real pfloor = 1.0e7 / pmy_mesh->punit->code_pressure_cgs;
-    if ( x > tde->R_star ) {
-      dfloor *= tde->R_star*tde->R_star / (x*x);
-      pfloor *= tde->R_star*tde->R_star / (x*x);
+    if ( rho < cutoff * tde->rho_star(0) && z > z_cutoff ) {
+      exp_floor = exp(-(z - z_cutoff) / dz_floor);
+      // rho = dfloor + (cutoff * tde->rho_star(0) - dfloor) * exp_floor;
+      // pres = tde->K * std::pow(rho, tde->gamp);
+      // egas = peos->EgasFromRhoP(rho, pres);
+      mask = exp_floor;
     }
 
     // set the initial conservative variables
-    phydro->u(IDN, 0, 0, i) = fmax(dfloor, rho);
+    phydro->u(IDN, 0, 0, i) = rho;
     phydro->u(IM1, 0, 0, i) = 0.0;
     phydro->u(IM2, 0, 0, i) = 0.0;
     phydro->u(IM3, 0, 0, i) = 0.0;
-    phydro->u(IEN, 0, 0, i) = fmax(pfloor, pres) / (gamma_gas - 1.0);
+    phydro->u(IEN, 0, 0, i) = egas;
 
     // set the initial passive scalars
-    pscalars->s(0, 0, 0, i) = x / tde->R_star * fmax(dfloor, rho);  // initial Lagrangian position
+    pscalars->s(0, 0, 0, i) = rho * mask; // floor mask
   }
 
   return;
 }
+

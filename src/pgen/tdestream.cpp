@@ -42,7 +42,7 @@ struct pgentde {
   AthenaArray<Real> r;         // radius
   AthenaArray<Real> area;      // area factor
   AthenaArray<Real> areadot;   // area factor derivative
-  std::array<Real, 18> mcoord; // mass coordinates at which to record outputs
+  std::array<Real, 11> mcoord; // mass coordinates at which to record outputs
   Real mtot;                   // total mass
 };
 
@@ -461,7 +461,7 @@ Real calcRho(MeshBlock *pmb, int iout) {
 
   // interpolate value
   iparam = (mfrac * mtot - mass_prev) / (mass - mass_prev);
-  return rho_prev * (1.0 - iparam) + rho * iparam;
+  return exp(log(rho_prev) * (1.0 - iparam) + log(rho) * iparam);
 }
 
 //----------------------------------------------------------------------------------------
@@ -497,7 +497,7 @@ Real calcPres(MeshBlock *pmb, int iout) {
 
   // interpolate value
   iparam = (mfrac * mtot - mass_prev) / (mass - mass_prev);
-  return pres_prev * (1.0 - iparam) + pres * iparam;
+  return exp(log(pres_prev) * (1.0 - iparam) + log(pres) * iparam);
 }
 
 template <int idx>
@@ -536,16 +536,16 @@ void EnrollCalcPres<0>(Mesh *pmy_mesh, int num_out) {}
 void Mesh::InitUserMeshData(ParameterInput *pin) {
 
   constexpr int num_out = 6;
-  AllocateUserHistoryOutput(num_out + 18 + 18 + 18);
+  AllocateUserHistoryOutput(num_out + 11 + 11 + 11);
   EnrollUserHistoryOutput(0, calcRhoC, "rho_c", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, calcPresC, "pres_c", UserHistoryOperation::max);
   EnrollUserHistoryOutput(2, calcEdotTide, "Edot_tide", UserHistoryOperation::sum);
   EnrollUserHistoryOutput(3, calcEdotArea, "Edot_area", UserHistoryOperation::sum);
   EnrollUserHistoryOutput(4, calcEkin, "Ekin", UserHistoryOperation::sum);
   EnrollUserHistoryOutput(5, calcEth, "Eth", UserHistoryOperation::sum);
-  EnrollCalcCoord<18>(this, num_out);
-  EnrollCalcRho<18>(this, num_out + 18);
-  EnrollCalcPres<18>(this, num_out + 18 + 18);
+  EnrollCalcCoord<11>(this, num_out);
+  EnrollCalcRho<11>(this, num_out + 11);
+  EnrollCalcPres<11>(this, num_out + 11 + 11);
   EnrollUserExplicitSourceFunction(tdeSrcFunc);
 
   return;
@@ -636,7 +636,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   tde->r.NewAthenaArray(tde->num_time);
   tde->area.NewAthenaArray(tde->num_time);
   tde->areadot.NewAthenaArray(tde->num_time);
-  tde->mcoord = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99};
+  tde->mcoord = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99};
 
   // set initial values
   tde->time(0) = time0;
