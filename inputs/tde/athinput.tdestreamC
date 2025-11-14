@@ -1,87 +1,84 @@
 <comment>
 problem   = Tidal disruption event debris stream
-reference =
+reference = Andalman+2026
 configure = --prob=tdestreamC
 
 <job>
-problem_id = tdestreamC   # problem ID: basename of output filenames
+problem_id = tdestreamC  # problem ID: basename of output filenames
 
 <output1>
-file_type   = hst        # History data dump
-dt          = 0.0001     # time increment between outputs
-data_format = %.12e      # output data format
-
-<output2>
-file_type  = hdf5      # HDF5 data dump
-variable   = prim      # variables to be output
-dt         = 0.01      # time increment between outputs
+file_type   = hst    # history data dump
+dt          = 0.0001 # time increment between outputs
+data_format = %.12e  # output data format
 
 <time>
 cfl_number =             0.3  # CFL number
 nlim       =              -1  # cycle limit
-tlim       =      17.0771553  # cycle limit
+tlim       =      17.3322663  # cycle limit
 integrator =             vl2  # time integration algorithm
 xorder     =               2  # order of spatial reconstruction
 ncycle_out =               1  # interval for stdout summary info
-start_time =     -17.0771553  # time of simulation start
+start_time =     -17.3322663  # time of simulation start
 
 <mesh>
-nx1        = 16384         # Number of zones in X1-direction
-x1min      = 0.0          # minimum value of X1
-x1max      = 0.50         # maximum value of X1
-ix1_bc     = reflecting   # inner-X1 boundary flag
-ox1_bc     = outflow      # outer-X1 boundary flag
-x1rat      = 1.00057     # ratio between neighboring cells
+nx1         = 16384       # number of zones in X1-direction
+x1min       = 0.0         # minimum value of X1
+x1max       = 0.5         # maximum value of X1
+ix1_bc      = reflecting  # inner-X1 boundary flag
+ox1_bc      = outflow     # outer-X1 boundary flag
+x1rat       = 1.00057     # ratio between neighboring cells
 
-nx2        = 1         # Number of zones in X2-direction
-x2min      = -0.5      # minimum value of X2
-x2max      = 0.5       # maximum value of X2
+nx2         = 1           # number of zones in X2-direction
+x2min       = -0.5        # minimum value of X2
+x2max       = 0.5         # maximum value of X2
 
-nx3        = 1         # Number of zones in X3-direction
-x3min      = -0.5      # minimum value of X3
-x3max      = 0.5       # maximum value of X3
+nx3         = 1           # number of zones in X3-direction
+x3min       = -0.5        # maximum value of X3
+x3max       = 0.5         # maximum value of X3
 
-num_threads = 1        # maximum number of OMP threads
+num_threads = 1           # maximum number of OMP threads
 
 <meshblock>
-nx1        = 16384
-nx2        = 1
-nx3        = 1
+nx1         = 16384
+nx2         = 1
+nx3         = 1
 
 <hydro>
-gamma              = 1.666666666666667      # gamma
-iso_sound_speed    = 1.0                    # isothermal sound speed
-dfloor             = 1.0e-16                # density floor
-pfloor             = 1.0e-22                # pressure floor
-eos_rho_unit       = 47.19748809041113      # rho [sim unit] * eos_rho_unit = rho [table unit]
-eos_egas_unit      = 1.8004773670297385e+21 # egas [sim unit] * eos_rho_unit = egas [table unit]
-eos_file_name      = /home/za9132/software/athena/athena++/src/eos/general/T+13_v3.hdf5 # tabulated EOS filename
+gamma           = 1.666666666666667  # gamma = C_p/C_v
+iso_sound_speed = 1.0                # isothermal sound speed
+dfloor          = 1.0e-16            # density floor
+pfloor          = 1.0e-22            # pressure floor
+eos_rho_unit   =      47.1974881  # rho [sim unit] * eos_rho_unit = rho [table unit]
+eos_egas_unit  =  1.80047737e+21  # egas [sim unit] * eos_rho_unit = egas [table unit]
+eos_file_name   = /home/za9132/software/athena/athena++/src/eos/general/T+13_v3.hdf5  # tabulated EOS filename
 
 <problem>
 Q       =         1000000  # BH-to-star mass ratio
 beta    =               2  # penetration factor
 Mstar   =           1e-06  # star mass
 Rstar   =            0.02  # star radius
-Rslice  =    0.0321016643  # stream slice radius
-rho0    =   0.00151320843  # affine model initial density
-x0      =     -8.06856683  # initial x-coordinate
-y0      =     -5.90756632  # initial y-coordinate
-vx0     =     0.421136727  # initial x-velocity
-vy0     =     0.134489077  # initial y-velocity
-lam0    =    0.0214408682  # initial longitudinal stretching
-Om0     =   0.00716749755  # initial angular frequency
-alpha0  =      6.59233673  # initial orientation
-L0      =      121693.296  # initial longitudinal size
-H0      =      10.6911338  # initial vertical size
-Hdot0   =    -0.281169843  # initial vertical stretching
-Dlt0    =      12.7180474  # initial horizontal size
-Dltdot0 =    -0.310288043  # initial horizontal stretching
-vpar0   =    0.0912445335  # initial in-plane shear
-temp0   =       2958.3133  # initial temperature
-K0      =    0.0105796014  # initial entropy
+Rslice  =    0.0229892525  # stream slice radius
+rho0    =   0.00155210958  # affine model initial density
+x0      =     -8.16529293  # initial x-coordinate
+y0      =     -5.77308065  # initial y-coordinate
+vx0     =     0.414206087  # initial x-velocity
+vy0     =     0.122160749  # initial y-velocity
+lam0    =    0.0219135523  # initial longitudinal stretching
+Om0     =    0.0074714358  # initial angular frequency
+alpha0  =       6.5699798  # initial orientation
+L0      =      8401.46273  # initial longitudinal size
+H0      =      9.27354582  # initial vertical size
+Hdot0   =    -0.249492505  # initial vertical stretching
+Dlt0    =      10.2040428  # initial horizontal size
+Dltdot0 =    -0.241678024  # initial horizontal stretching
+vpar0   =    0.0762160333  # initial in-plane shear
+temp0   =      3136.39181  # initial temperature
+K0      =   0.00270483203  # initial entropy
+K02     =  4.23417411e-05  # initial entropy (AM)
 
-<units>
+<hydro>
 unit_system = custom
-length_cgs = 3.48e+12  # pericenter radius
-mass_cgs = 1.9891e+39  # BH mass
-time_cgs = 563.436339  # dynamical time at pericenter
+length_cgs =        3.48e+12  # pericenter radius
+mass_cgs   =      1.9891e+39    # BH mass
+time_cgs   =      563.436339    # dynamical time at pericenter
+

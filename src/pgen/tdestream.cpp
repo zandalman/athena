@@ -16,6 +16,7 @@
 #include <cstdio>     
 #include <iostream>  
 #include <sstream> 
+#include <fstream>
 #include <stdexcept> 
 #include <string>
 
@@ -44,6 +45,8 @@ struct pgentde {
   AthenaArray<Real> areadot;   // area factor derivative
   std::array<Real, 11> mcoord; // mass coordinates at which to record outputs
   Real mtot;                   // total mass
+  Real rho0;
+  Real K0;
 };
 
 pgentde* tde = new pgentde();
@@ -80,6 +83,8 @@ struct affineModel {
   Real Om;     // angular frequency
   Real L;      // longitudinal length
   Real alpha;  // orientation
+  Real H;      // vertical size
+  Real Hdot;   // vertical stretching
   Real Dlt;    // horizontal size
   Real Dltdot; // horizontal stretching
   Real vpar;   // in-plane shear
@@ -93,6 +98,8 @@ struct affineModel {
     am.Om = Om + other.Om;
     am.L = L + other.L;
     am.alpha = alpha + other.alpha;
+    am.H = H + other.H;
+    am.Hdot = Hdot + other.Hdot;
     am.Dlt = Dlt + other.Dlt;
     am.Dltdot = Dltdot + other.Dltdot;
     am.vpar = vpar + other.vpar;
@@ -108,6 +115,8 @@ struct affineModel {
     am.Om = scalar * Om;
     am.L = scalar * L;
     am.alpha = scalar * alpha;
+    am.H = scalar * H;
+    am.Hdot = scalar * Hdot;
     am.Dlt = scalar * Dlt;
     am.Dltdot = scalar * Dltdot;
     am.vpar = scalar * vpar;
@@ -143,8 +152,14 @@ void calcAffineModel(Real time, const affineModel &am, affineModel &amdot) {
   amdot.Om = -2.0 * am.lam * am.Om + 3.0/(am.r*am.r*am.r) * cos_dlt * sin_dlt;
   amdot.L = am.lam * am.L;
   amdot.alpha = am.Om;
+  amdot.H = am.Hdot;
+  amdot.Hdot = 2.0*M_PI * tde->rho0 
+    * (pow(am.L * am.Dlt * am.H, -tde->gm1) / am.H - 2.0 / (am.L * (am.Dlt + am.H)))
+    -1.0/(am.r*am.r*am.r) * am.H;
   amdot.Dlt = am.Dltdot;
-  amdot.Dltdot = -am.Dlt * (1.0 - 3.0 * sin_dlt*sin_dlt) / (am.r*am.r*am.r) - am.Om*am.Om * am.Dlt - 2.0 * am.Om * am.vpar;
+  amdot.Dltdot = 2.0*M_PI * tde->rho0
+    * (pow(am.L * am.Dlt * am.H, -tde->gm1) / am.Dlt - 2.0 / (am.L * (am.Dlt + am.H)))
+    -am.Dlt * (1.0 - 3.0 * sin_dlt*sin_dlt) / (am.r*am.r*am.r) - am.Om*am.Om * am.Dlt - 2.0 * am.Om * am.vpar;
   amdot.vpar = 3.0/(am.r*am.r*am.r) * am.Dlt * cos_dlt * sin_dlt + am.Dltdot * am.Om - am.lam * (am.Om * am.Dlt + am.vpar);
 }
 
@@ -562,6 +577,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // floors
   tde->dfloor = pin->GetReal("hydro", "dfloor");
   tde->pfloor = pin->GetReal("hydro", "pfloor");
+
+  // problem name
+  std::string pname = pin->GetString("job", "problem_id");
   
   // populate the affine model struct
   affineModel am;
@@ -569,6 +587,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   am.Om = pin->GetReal("problem", "Om0");
   am.L = pin->GetReal("problem", "L0");
   am.alpha = pin->GetReal("problem", "alpha0");
+  am.H = pin->GetReal("problem", "H0");
+  am.Hdot = pin->GetReal("problem", "Hdot0");
   am.Dlt = pin->GetReal("problem", "Dlt0");
   am.Dltdot = pin->GetReal("problem", "Dltdot0");
   am.vpar = pin->GetReal("problem", "vpar0");
@@ -587,6 +607,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real fmax = M_PI;
   Real z_slice = R_slice * H0;
   tde->gm1 = gamg - 1.0;
+  tde->rho0 = rho0;
+  tde->K0 = K0;
 
   // compute orbital parameters
   Real r0 = sqrt(x*x + y*y);
@@ -630,7 +652,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   }
 
   // create arrays for affine model
-  const int fine_ratio = 4;
+  const int fine_ratio = 16384;
   tde->num_time = 16384;
   tde->time.NewAthenaArray(tde->num_time);
   tde->r.NewAthenaArray(tde->num_time);
@@ -643,6 +665,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   tde->r(0) = r0;
   tde->area(0) = am.Dlt * am.L;
   tde->areadot(0) = tde->area(0) * (am.Dltdot / am.Dlt + am.lam);
+
+  // open file to write affine model results
+  std::ofstream outputFile(pname.append(".am"));
+  outputFile << "time" << "," 
+             << "r" << "," << "f" << "," << "lam" << "," << "Om" << ","
+             << "L" << "," << "alpha" << "," << "H" << "," << "Hdot" << ","
+             << "Dlt" << "," << "Dltdot" << "," << "vpar" << std::endl;
 
   // compute the affine model
   Real df = (fmax - f0) / static_cast<Real>(fine_ratio * tde->num_time - 1);
@@ -658,11 +687,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
       dt = time - time_old;
       rk4<decltype(calcAffineModel), affineModel>(calcAffineModel, dt, time_old, am);
     }
+
+    outputFile << time << ","
+               << am.r << "," << am.f << "," << am.lam << "," << am.Om << "," 
+               << am.L << "," << am.alpha << "," << am.H << "," << am.Hdot << ","
+               << am.Dlt << "," << am.Dltdot << "," << am.vpar << std::endl;
+
     tde->time(i) = time;
     tde->r(i) = am.r;
     tde->area(i) = am.Dlt * am.L;
     tde->areadot(i) = tde->area(i) * (am.Dltdot / am.Dlt + am.lam);
   }
+
+  outputFile.close();
 
   int idx;
   Real iparam, z, dz, exp_floor;
