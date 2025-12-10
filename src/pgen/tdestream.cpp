@@ -19,6 +19,13 @@
 #include <fstream>
 #include <stdexcept> 
 #include <string>
+#include <hdf5.h>
+
+#if SINGLE_PRECISION_ENABLED
+#define H5T_REAL H5T_NATIVE_FLOAT
+#else
+#define H5T_REAL H5T_NATIVE_DOUBLE
+#endif
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -36,17 +43,17 @@
 struct pgentde {
   Real n;                      // polytrope index
   int num_time;                // number of samples for affine model evolution
-  Real gm1;                    // gamma minus one
   Real dfloor;                 // density floor
   Real pfloor;                 // pressure floor
+  Real mtot;                   // total mass
+  Real rho_init;               // initial density
+  Real area0;                  // initial area factor
+  Real gm1;
   AthenaArray<Real> time;      // time
   AthenaArray<Real> r;         // radius
   AthenaArray<Real> area;      // area factor
   AthenaArray<Real> areadot;   // area factor derivative
   std::array<Real, 11> mcoord; // mass coordinates at which to record outputs
-  Real mtot;                   // total mass
-  Real rho0;
-  Real K0;
 };
 
 pgentde* tde = new pgentde();
@@ -76,58 +83,6 @@ struct laneEmden {
   }
 };
 
-struct affineModel {
-  Real r;      // radius
-  Real f;      // true anomaly
-  Real lam;    // longitudial stretching
-  Real Om;     // angular frequency
-  Real L;      // longitudinal length
-  Real alpha;  // orientation
-  Real H;      // vertical size
-  Real Hdot;   // vertical stretching
-  Real Dlt;    // horizontal size
-  Real Dltdot; // horizontal stretching
-  Real vpar;   // in-plane shear
-
-  // Overload the + operator
-  affineModel operator+(const affineModel& other) const {
-    affineModel am;
-    am.r = r;
-    am.f = f;
-    am.lam = lam + other.lam;
-    am.Om = Om + other.Om;
-    am.L = L + other.L;
-    am.alpha = alpha + other.alpha;
-    am.H = H + other.H;
-    am.Hdot = Hdot + other.Hdot;
-    am.Dlt = Dlt + other.Dlt;
-    am.Dltdot = Dltdot + other.Dltdot;
-    am.vpar = vpar + other.vpar;
-    return am;
-  }
-
-  // Overload the * operator
-  affineModel operator*(Real scalar) const {
-    affineModel am;
-    am.r = r;
-    am.f = f;
-    am.lam = scalar * lam;
-    am.Om = scalar * Om;
-    am.L = scalar * L;
-    am.alpha = scalar * alpha;
-    am.H = scalar * H;
-    am.Hdot = scalar * Hdot;
-    am.Dlt = scalar * Dlt;
-    am.Dltdot = scalar * Dltdot;
-    am.vpar = scalar * vpar;
-    return am;
-  }
-
-  friend affineModel operator*(Real scalar, const affineModel& am) {
-    return am * scalar;
-  }
-};
-
 //----------------------------------------------------------------------------------------
 //! \fn void calcLaneEmden(const Real xi, const laneEmden le, laneEmden &dledxi)
 //! \brief calcLaneEmden: Compute derivatives in the cylindrical Lane-Emden equation with respect to xi.
@@ -137,30 +92,6 @@ struct affineModel {
 void calcLaneEmden(const Real xi, const laneEmden le, laneEmden &dledxi) {
   dledxi.th = -le.phi / xi;
   dledxi.phi = std::pow(fmax(le.th, 0.0), tde->n) * xi;
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn void calcAffineModel(Real time, const affineModel &am, affineModel &amdot)
-//! \brief calcAffineModel: Compute the derivatives in the affine model with respect to time.
-//! \param time   Time
-//! \param am     Affine model parameters
-//! \param amdot  Affine model parameter derivatives
-void calcAffineModel(Real time, const affineModel &am, affineModel &amdot) {
-  Real cos_dlt = cos(am.f) * cos(am.alpha) + sin(am.f) * sin(am.alpha);
-  Real sin_dlt = sin(am.f) * cos(am.alpha) - cos(am.f) * sin(am.alpha);
-  amdot.lam = am.Om*am.Om - am.lam*am.lam - (1.0 - 3.0 * cos_dlt*cos_dlt) / (am.r*am.r*am.r);
-  amdot.Om = -2.0 * am.lam * am.Om + 3.0/(am.r*am.r*am.r) * cos_dlt * sin_dlt;
-  amdot.L = am.lam * am.L;
-  amdot.alpha = am.Om;
-  amdot.H = am.Hdot;
-  amdot.Hdot = 2.0*M_PI * tde->rho0 
-    * (pow(am.L * am.Dlt * am.H, -tde->gm1) / am.H - 2.0 / (am.L * (am.Dlt + am.H)))
-    -1.0/(am.r*am.r*am.r) * am.H;
-  amdot.Dlt = am.Dltdot;
-  amdot.Dltdot = 2.0*M_PI * tde->rho0
-    * (pow(am.L * am.Dlt * am.H, -tde->gm1) / am.Dlt - 2.0 / (am.L * (am.Dlt + am.H)))
-    -am.Dlt * (1.0 - 3.0 * sin_dlt*sin_dlt) / (am.r*am.r*am.r) - am.Om*am.Om * am.Dlt - 2.0 * am.Om * am.vpar;
-  amdot.vpar = 3.0/(am.r*am.r*am.r) * am.Dlt * cos_dlt * sin_dlt + am.Dltdot * am.Om - am.lam * (am.Om * am.Dlt + am.vpar);
 }
 
 //----------------------------------------------------------------------------------------
@@ -239,6 +170,18 @@ Real angleToTime(const double f, const double ecc, const double a, const double 
   Real sgn = static_cast<Real>(2 * (f > 0.0) - 1);
   Real num_per = floor(0.5 + f / (2.0 * M_PI));
   return sgn * (u - ecc * sin_u) * sqrt(a*a*a) + num_per * per;
+}
+
+void readAM(hid_t file, const char* field, AthenaArray<Real> &array, int &num) {
+  hid_t dataset = H5Dopen(file, field, H5P_DEFAULT);
+  hid_t dataspace = H5Dget_space(dataset);
+  hsize_t dims[1];
+  H5Sget_simple_extent_dims(dataspace, dims, NULL);
+  num = static_cast<int>(dims[0]);
+  array.NewAthenaArray(num);
+  H5Dread(dataset, H5T_REAL, H5S_ALL, H5S_ALL, H5P_DEFAULT, array.data());
+  H5Sclose(dataspace);
+  H5Dclose(dataset);
 }
 
 //----------------------------------------------------------------------------------------
@@ -409,6 +352,38 @@ Real calcPresC(MeshBlock *pmb, int iout) {
 }
 
 //----------------------------------------------------------------------------------------
+//! \fn Real calcH(MeshBlock *pmb, int iout)
+//! \brief calcH: Calculate the dimensionless height.
+Real calcH(MeshBlock *pmb, int iout) {
+  int idx;
+  Real iparam;
+  Real time = pmb->pmy_mesh->time;
+  calcIparam(time, tde->num_time, tde->time, idx, iparam);
+  Real area = interp(idx, iparam, tde->area);
+  Real rho_c = pmb->phydro->w(IDN, 0, 0, 0);
+  return tde->rho_init / (rho_c * area);
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real calclogHdot(MeshBlock *pmb, int iout)
+//! \brief calclogHdot: Calculate the dimensionless height derivative.
+//! Maximum likelihood estimator for dvz/dz weighted by mass of each cell.
+Real calclogHdot(MeshBlock *pmb, int iout) {
+  Real dz, z, rho, vel;
+  Real num = 0.0;
+  Real den = 0.0;
+  for (int i=pmb->is; i<=pmb->ie; i++) {
+    dz = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
+    z = pmb->pcoord->x1v(i);
+    rho = pmb->phydro->w(IDN, 0, 0, i);
+    vel = pmb->phydro->w(IVX, 0, 0, i);
+    num += rho * dz * z * vel;
+    den += rho * dz * z*z;
+  }
+  return num / den;
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn Real calcCoord(MeshBlock *pmb, int iout)
 //! \brief calcCoord: Calculate the Eulerian coordinate of each mass coordinate.
 template <int idx>
@@ -426,7 +401,7 @@ Real calcCoord(MeshBlock *pmb, int iout) {
   Real time = pmb->pmy_mesh->time;
   calcIparam(time, tde->num_time, tde->time, idx2, iparam);
   Real area = interp(idx2, iparam, tde->area);
-  Real mtot = tde->mtot * tde->area(0) / area;
+  Real mtot = tde->mtot * tde->area0 / area;
 
   // find mass coordinate
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -462,7 +437,7 @@ Real calcRho(MeshBlock *pmb, int iout) {
   Real time = pmb->pmy_mesh->time;
   calcIparam(time, tde->num_time, tde->time, idx2, iparam);
   Real area = interp(idx2, iparam, tde->area);
-  Real mtot = tde->mtot * tde->area(0) / area;
+  Real mtot = tde->mtot * tde->area0 / area;
 
   // find mass coordinate
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -497,7 +472,7 @@ Real calcPres(MeshBlock *pmb, int iout) {
   Real time = pmb->pmy_mesh->time;
   calcIparam(time, tde->num_time, tde->time, idx2, iparam);
   Real area = interp(idx2, iparam, tde->area);
-  Real mtot = tde->mtot * tde->area(0) / area;
+  Real mtot = tde->mtot * tde->area0 / area;
 
   // find mass coordinate
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -550,7 +525,7 @@ void EnrollCalcPres<0>(Mesh *pmy_mesh, int num_out) {}
 
 void Mesh::InitUserMeshData(ParameterInput *pin) {
 
-  constexpr int num_out = 6;
+  constexpr int num_out = 8;
   AllocateUserHistoryOutput(num_out + 11 + 11 + 11);
   EnrollUserHistoryOutput(0, calcRhoC, "rho_c", UserHistoryOperation::max);
   EnrollUserHistoryOutput(1, calcPresC, "pres_c", UserHistoryOperation::max);
@@ -558,6 +533,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   EnrollUserHistoryOutput(3, calcEdotArea, "Edot_area", UserHistoryOperation::sum);
   EnrollUserHistoryOutput(4, calcEkin, "Ekin", UserHistoryOperation::sum);
   EnrollUserHistoryOutput(5, calcEth, "Eth", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(6, calcH, "H", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(7, calclogHdot, "logHdot", UserHistoryOperation::max);
   EnrollCalcCoord<11>(this, num_out);
   EnrollCalcRho<11>(this, num_out + 11);
   EnrollCalcPres<11>(this, num_out + 11 + 11);
@@ -572,7 +549,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 //========================================================================================
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
+  
   std::stringstream msg;
+
+  // affine model solution filename
+  std::string am_name = pin->GetString("problem", "am");
   
   // floors
   tde->dfloor = pin->GetReal("hydro", "dfloor");
@@ -580,46 +561,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   // problem name
   std::string pname = pin->GetString("job", "problem_id");
-  
-  // populate the affine model struct
-  affineModel am;
-  am.lam = pin->GetReal("problem", "lam0");
-  am.Om = pin->GetReal("problem", "Om0");
-  am.L = pin->GetReal("problem", "L0");
-  am.alpha = pin->GetReal("problem", "alpha0");
-  am.H = pin->GetReal("problem", "H0");
-  am.Hdot = pin->GetReal("problem", "Hdot0");
-  am.Dlt = pin->GetReal("problem", "Dlt0");
-  am.Dltdot = pin->GetReal("problem", "Dltdot0");
-  am.vpar = pin->GetReal("problem", "vpar0");
 
   // retrieve other parameters
-  Real x = pin->GetReal("problem", "x0");
-  Real xdot = pin->GetReal("problem", "vx0");
-  Real y = pin->GetReal("problem", "y0");
-  Real ydot = pin->GetReal("problem", "vy0");
-  Real R_slice = pin->GetReal("problem", "Rslice");
+  Real rho_init = pin->GetReal("problem", "rho_init");
   Real rho0 = pin->GetReal("problem", "rho0");
+  Real s_eq = pin->GetReal("problem", "s_eq");
   Real H0 = pin->GetReal("problem", "H0");
   Real Hdot0 = pin->GetReal("problem", "Hdot0");
   Real K0 = pin->GetReal("problem", "K0");
   Real gamg = pin->GetOrAddReal("hydro", "gamma", 5.0/3.0);
-  Real fmax = M_PI;
-  Real z_slice = R_slice * H0;
+  Real z0 = s_eq * H0;
+  tde->rho_init = rho_init;
   tde->gm1 = gamg - 1.0;
-  tde->rho0 = rho0;
-  tde->K0 = K0;
 
-  // compute orbital parameters
-  Real r0 = sqrt(x*x + y*y);
-  Real vel0 = sqrt(xdot*xdot + ydot*ydot);
-  Real eps = -1.0/r0 + 0.5 * vel0*vel0;
-  Real h = x * ydot - y * xdot;
-  Real ecc = sqrt(1.0 + 2.0 * eps * h*h);
-  Real a = -1.0 / (2.0 * eps);
-  Real per = 2.0 * M_PI * sqrt(a*a*a);
-  Real f0 = -acos((a * (1.0 - ecc*ecc) / r0 - 1.0) / ecc);
-  Real time0 = angleToTime(f0, ecc, a, per);
+  tde->mcoord = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99};
 
   // create arrays for stream slice profile
   int num_le = 16384;
@@ -629,9 +584,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   // define polytrope parameters
   tde->n = 1.5;
-  Real gam = 1.0 + 1.0/tde->n;
+  Real gam = 1.0 + 1.0 / tde->n;
   const Real xi_max = 2.6477; // from cylindrical polytrope
-  Real alpha = z_slice / xi_max;
+  Real alpha = z0 / xi_max;
 
   // compute stream slice profile
   laneEmden le;
@@ -640,71 +595,35 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real z_cutoff;
   dxi = xi_max / static_cast<Real>(num_le - 1);
   r_sl(0) = 0.0;
-  rho_sl(0) = rho0 / (am.L * H0 * am.Dlt);
+  rho_sl(0) = rho0;
   le.th = 1.0 - 0.25 * dxi*dxi; // from Taylor expansion around xi=0
   le.phi = -0.5 * dxi*dxi*dxi;
   for ( int i=1; i<num_le; i++ ) {
     xi = dxi + static_cast<Real>(i) * dxi;
     r_sl(i) = alpha * xi;
-    rho_sl(i) = rho_sl(0) * std::pow(std::fmax(le.th, 0.0), tde->n);
-    if ( rho_sl(i) < cutoff * rho_sl(0) ) z_cutoff = r_sl(i);
+    rho_sl(i) = rho0 * std::pow(std::fmax(le.th, 0.0), tde->n);
+    if ( rho_sl(i) < cutoff * rho0 ) z_cutoff = r_sl(i);
     rk4<decltype(calcLaneEmden), laneEmden>(calcLaneEmden, dxi, xi, le);
   }
 
-  // create arrays for affine model
-  const int fine_ratio = 16384;
-  tde->num_time = 16384;
-  tde->time.NewAthenaArray(tde->num_time);
-  tde->r.NewAthenaArray(tde->num_time);
-  tde->area.NewAthenaArray(tde->num_time);
-  tde->areadot.NewAthenaArray(tde->num_time);
-  tde->mcoord = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99};
+  // read affine model solution
+  hid_t file = H5Fopen(am_name.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+  readAM(file, "time", tde->time, tde->num_time);
+  readAM(file, "r", tde->r, tde->num_time);
+  readAM(file, "area", tde->area, tde->num_time);
+  readAM(file, "areadot", tde->areadot, tde->num_time);
+  H5Fclose(file);
 
-  // set initial values
-  tde->time(0) = time0;
-  tde->r(0) = r0;
-  tde->area(0) = am.Dlt * am.L;
-  tde->areadot(0) = tde->area(0) * (am.Dltdot / am.Dlt + am.lam);
-
-  // open file to write affine model results
-  std::ofstream outputFile(pname.append(".am"));
-  outputFile << "time" << "," 
-             << "r" << "," << "f" << "," << "lam" << "," << "Om" << ","
-             << "L" << "," << "alpha" << "," << "H" << "," << "Hdot" << ","
-             << "Dlt" << "," << "Dltdot" << "," << "vpar" << std::endl;
-
-  // compute the affine model
-  Real df = (fmax - f0) / static_cast<Real>(fine_ratio * tde->num_time - 1);
-  Real f, r, time, time_old, dt;
-  time = time0;
-  for ( int i=1; i<tde->num_time; i++ ) {
-    for ( int j=0; j<fine_ratio; j++ ) {
-      if ( i == 1 and j == 0 ) continue;
-      am.f = f0 + static_cast<Real>(fine_ratio * (i - 1) + j) * df;
-      am.r = a * (1.0 - ecc*ecc) / (1.0 + ecc * cos(am.f));
-      time_old = time;
-      time = angleToTime(am.f, ecc, a, per);
-      dt = time - time_old;
-      rk4<decltype(calcAffineModel), affineModel>(calcAffineModel, dt, time_old, am);
-    }
-
-    outputFile << time << ","
-               << am.r << "," << am.f << "," << am.lam << "," << am.Om << "," 
-               << am.L << "," << am.alpha << "," << am.H << "," << am.Hdot << ","
-               << am.Dlt << "," << am.Dltdot << "," << am.vpar << std::endl;
-
-    tde->time(i) = time;
-    tde->r(i) = am.r;
-    tde->area(i) = am.Dlt * am.L;
-    tde->areadot(i) = tde->area(i) * (am.Dltdot / am.Dlt + am.lam);
-  }
-
-  outputFile.close();
+  int idx2;
+  Real iparam2;
+  Real time0 = pin->GetReal("time", "start_time");
+  calcIparam(time0, tde->num_time, tde->time, idx2, iparam2);
+  tde->area0 = interp(idx2, iparam2, tde->area);
 
   int idx;
   Real iparam, z, dz, exp_floor;
   Real rho, pres, vel, mask;
-  Real dz_floor = 0.02 * z_slice;
+  Real dz_floor = 0.02 * z0;
   tde->mtot = 0.0;
 
   for (int i=is; i<=ie; i++) {
@@ -720,8 +639,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
     if ( rho < cutoff * rho_sl(0) && z > z_cutoff ) {
       exp_floor = exp(-(z - z_cutoff) / dz_floor);
-      // rho = tde->dfloor + (cutoff * rho_sl(0) - tde->dfloor) * exp_floor;
-      // pres = K0 * std::pow(rho, gam);
       vel = Hdot0 / H0 * z * exp_floor;
       mask = exp_floor;
     } else {
