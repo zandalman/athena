@@ -1,0 +1,85 @@
+<comment>
+problem   = TDE self-intersection
+reference =
+configure = --prob=tde_si
+
+<job>
+problem_id = tde_si  # problem ID: basename of output filenames
+
+<output1>
+file_type  = hdf5      # HDF5 data dump
+variable   = prim      # variables to be output
+dt         = 25.0     # time increment between outputs
+next_time = 0.0
+
+<time>
+cfl_number =             0.3  # CFL number
+nlim       =              -1  # cycle limit
+tlim       =            10000 # cycle limit
+integrator =             vl2  # time integration algorithm
+xorder     =               2  # order of spatial reconstruction
+ncycle_out =               1  # interval for stdout summary info
+start_time =             0.0  # time of simulation start
+dt_max     =             2.0  # maximum timestep 
+
+<mesh>
+nx1        = 256                # Number of zones in X1-direction
+x1min      = -1005.0              # minimum value of X1
+x1max      = -705.0              # maximum value of X1
+ix1_bc     = user               # inner-X1 boundary flag
+ox1_bc     = user               # outer-X1 boundary flag
+
+nx2        = 256                # Number of zones in X2-direction
+x2min      = -543.0               # minimum value of X2
+x2max      = -243.0                # maximum value of X2
+ix2_bc     = user            # inner-X2 boundary flag
+ox2_bc     = user           # outer-X2 boundary flag
+
+nx3        = 192                 # Number of zones in X3-direction
+x3min      = -112.5                  # minimum value of X3
+x3max      = 112.5                # maximum value of X3
+ix3_bc     = user         # inner-X3 boundary flag
+ox3_bc     = user            # outer-X3 boundary flag
+
+<meshblock>
+nx1        = 32
+nx2        = 32
+nx3        = 32
+
+<hydro>
+gamma = 1.333333333333333 # gamma = C_p/C_v
+iso_sound_speed = 1.0     # isothermal sound speed
+dfloor          = 1.e-24 # density floor
+pfloor          = 1.e-27  # pressure floor
+
+<problem>
+
+rho1    =  3.27327658e-14
+K1      =  0.000687464882
+y1      =     -319.796895
+xdot1   =   -0.0305133602
+ydot1   =   -0.0238703274
+yp_max1 =      4.15348827
+zp_max1 =      3.06482901
+dvx_dy1 = -1.98011493e-05
+dvx_dy1 = -6.18645313e-05
+dvz_dz1 =  8.02370151e-05
+
+rho2    =  4.64463659e-14
+K2      =  0.000624813712
+y2      =     -479.688505
+xdot2   =     0.028297744
+ydot2   =   0.00646323714
+yp_max2 =      8.99163638
+zp_max2 =      6.72835156
+dvx_dy2 =  5.35570168e-08
+dvx_dy2 = -2.35220246e-05
+dvz_dz2 = -1.13633462e-05
+
+delay   = 2.0e3
+
+<units>
+unit_system = custom
+length_cgs = 1.4770934e+11  # gravitational radius
+mass_cgs = 1.9891e+39       # BH mass
+time_cgs = 4.9270606        # light-crossing time of gravitational radius

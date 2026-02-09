@@ -231,6 +231,12 @@ class Mesh {
   friend class FieldDiffusion;
   friend class OrbitalAdvection;
   friend class Particles;
+  template <int idx>
+  friend void EnrollCalcCoord(Mesh*, int);
+  template <int idx>
+  friend void EnrollCalcRho(Mesh*, int);
+  template <int idx>
+  friend void EnrollCalcPres(Mesh*, int);
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif

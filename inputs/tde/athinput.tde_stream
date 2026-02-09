@@ -1,0 +1,67 @@
+<comment>
+problem   = TDE nozzle shock
+reference = Andalman+2026
+configure = --prob=tde_stream
+
+<job>
+problem_id = tde_stream  # problem ID: basename of output filenames
+
+<output1>
+file_type   = hst    # history data dump
+dt          = 0.0001 # time increment between outputs
+data_format = %.12e  # output data format
+
+<time>
+cfl_number =             0.3  # CFL number
+nlim       =              -1  # cycle limit
+tlim       =      17.332249900357056  # cycle limit
+integrator =             vl2  # time integration algorithm
+xorder     =               2  # order of spatial reconstruction
+ncycle_out =               1  # interval for stdout summary info
+start_time =     -17.332249900357056  # time of simulation start
+
+<mesh>
+nx1         = 16384       # number of zones in X1-direction
+x1min       = 0.0         # minimum value of X1
+x1max       = 0.5         # maximum value of X1
+ix1_bc      = reflecting  # inner-X1 boundary flag
+ox1_bc      = outflow     # outer-X1 boundary flag
+x1rat       = 1.00062     # ratio between neighboring cells
+
+nx2         = 1           # number of zones in X2-direction
+x2min       = -0.5        # minimum value of X2
+x2max       = 0.5         # maximum value of X2
+
+nx3         = 1           # number of zones in X3-direction
+x3min       = -0.5        # maximum value of X3
+x3max       = 0.5         # maximum value of X3
+
+num_threads = 1           # maximum number of OMP threads
+
+<meshblock>
+nx1         = 16384
+nx2         = 1
+nx3         = 1
+
+<hydro>
+gamma           = 1.666666666666667  # gamma = C_p/C_v
+iso_sound_speed = 1.0                # isothermal sound speed
+dfloor          = 1.0e-16            # density floor
+pfloor          = 1.0e-22            # pressure floor
+eos_rho_unit   =      47.1974881  # rho [sim unit] * eos_rho_unit = rho [table unit]
+eos_egas_unit  =  1.80047737e+21  # egas [sim unit] * eos_rho_unit = egas [table unit]
+eos_file_name   = /home/za9132/projects/tde_si/eos/T+13.hdf5  # tabulated EOS filename
+
+<problem>
+rho0    =   1.9830597211532175e-09  # affine model initial density
+s_eq    =    0.022989252472815684  # stream slice radius
+H0      =      9.244921753245634  # initial vertical size
+Hdot0   =    -0.24871063342181876  # initial vertical stretching
+K0      =   0.0026957350808968637  # initial entropy
+am      = /home/za9132/scratch/nozzle_shock/athena++/stream/am/am.15.hdf5
+
+<units>
+unit_system = custom
+length_cgs = 1.4770934e+11  # gravitational radius
+mass_cgs = 1.9891e+39       # BH mass
+time_cgs = 4.9270606        # light-crossing time of gravitational radius
