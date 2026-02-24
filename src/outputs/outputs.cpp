@@ -228,6 +228,29 @@ Outputs::Outputs(Mesh *pm, ParameterInput *pin) {
           ATHENA_ERROR(msg);
         }
 
+        // read sum options.  Check for conflicts with slicing.
+        op.output_dsumx1 = pin->GetOrAddBoolean(op.block_name,"x1_dsum",false);
+        if ((op.output_slicex1) && (op.output_dsumx1)) {
+          msg << "### FATAL ERROR in Outputs constructor" << std::endl
+              << "Cannot request both slice and sum along x1-direction"
+              << " in output block '" << op.block_name << "'" << std::endl;
+          ATHENA_ERROR(msg);
+        }
+        op.output_dsumx2 = pin->GetOrAddBoolean(op.block_name,"x2_dsum",false);
+        if ((op.output_slicex2) && (op.output_dsumx2)) {
+          msg << "### FATAL ERROR in Outputs constructor" << std::endl
+              << "Cannot request both slice and sum along x2-direction"
+              << " in output block '" << op.block_name << "'" << std::endl;
+          ATHENA_ERROR(msg);
+        }
+        op.output_dsumx3 = pin->GetOrAddBoolean(op.block_name,"x3_dsum",false);
+        if ((op.output_slicex3) && (op.output_dsumx3)) {
+          msg << "### FATAL ERROR in Outputs constructor" << std::endl
+              << "Cannot request both slice and sum along x3-direction"
+              << " in output block '" << op.block_name << "'" << std::endl;
+          ATHENA_ERROR(msg);
+        }
+
         // read ghost cell option
         op.include_ghost_zones = pin->GetOrAddBoolean(op.block_name, "ghost_zones",
                                                       false);
@@ -1417,6 +1440,15 @@ bool OutputType::TransformOutputData(MeshBlock *pmb) {
   if (output_params.output_sumx1) {
     SumOutputData(pmb,1);
   }
+  if (output_params.output_dsumx3) {
+    DSumOutputData(pmb,3);
+  }
+  if (output_params.output_dsumx2) {
+    DSumOutputData(pmb,2);
+  }
+  if (output_params.output_dsumx1) {
+    DSumOutputData(pmb,1);
+  }
   return flag;
 }
 
@@ -1576,6 +1608,77 @@ void OutputType::SumOutputData(MeshBlock* pmb, int dim) {
           for (int j=out_js; j<=out_je; ++j) {
             for (int i=out_is; i<=out_ie; ++i) {
               pnew->data(n,k,j,0) += pdata->data(n,k,j,i);
+            }
+          }
+        }
+      }
+    }
+
+    ReplaceOutputDataNode(pdata, pnew);
+    pdata = pnew->pnext;
+  }
+
+  // modify array indices
+  if (dim == 3) {
+    out_ks = 0;
+    out_ke = 0;
+  } else if (dim == 2) {
+    out_js = 0;
+    out_je = 0;
+  } else {
+    out_is = 0;
+    out_ie = 0;
+  }
+  return;
+}
+
+
+//----------------------------------------------------------------------------------------
+//! \fn void OutputType::SumOutputData(OutputData* pod, int dim)
+//! \brief perform data summation and update the data list
+
+void OutputType::DSumOutputData(MeshBlock* pmb, int dim) {
+  // For each node in OutputData doubly linked list, sum arrays containing output data
+  OutputData *pdata = pfirst_data_;
+  while (pdata != nullptr) {
+    OutputData *pnew = new OutputData;
+    pnew->type = pdata->type;
+    pnew->name = pdata->name;
+    int nx4 = pdata->data.GetDim4();
+    int nx3 = pdata->data.GetDim3();
+    int nx2 = pdata->data.GetDim2();
+    int nx1 = pdata->data.GetDim1();
+
+    // Loop over variables and dimensions, sum over specified dimension
+    if (dim == 3) {
+      pnew->data.NewAthenaArray(nx4, 1, nx2, nx1);
+      for (int n=0; n<nx4; ++n) {
+        for (int k=out_ks; k<=out_ke; ++k) {
+          for (int j=out_js; j<=out_je; ++j) {
+            for (int i=out_is; i<=out_ie; ++i) {
+              pnew->data(n,0,j,i) += pdata->data(n,k,j,i) * pmb->phydro->w(IDN,k,j,i);
+            }
+          }
+        }
+      }
+    } else if (dim == 2) {
+      pnew->data.NewAthenaArray(nx4, nx3, 1, nx1);
+      for (int n=0; n<nx4; ++n) {
+        for (int k=out_ks; k<=out_ke; ++k) {
+          for (int j=out_js; j<=out_je; ++j) {
+            for (int i=out_is; i<=out_ie; ++i) {
+              pnew->data(n,k,0,i) += pdata->data(n,k,j,i) * pmb->phydro->w(IDN,k,j,i);
+            }
+          }
+        }
+      }
+    } else {
+      pnew->data.NewAthenaArray(nx4, nx3, nx2, 1);
+      for (int n=0; n<nx4; ++n) {
+        for (int k=out_ks; k<=out_ke; ++k) {
+          for (int j=out_js; j<=out_je; ++j) {
+            for (int i=out_is; i<=out_ie; ++i) {
+              pnew->data(n,k,j,0) += pdata->data(n,k,j,i) * pmb->phydro->w(IDN,k,j,i);
             }
           }
         }

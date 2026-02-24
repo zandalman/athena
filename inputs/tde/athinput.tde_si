@@ -9,13 +9,14 @@ problem_id = tde_si  # problem ID: basename of output filenames
 <output1>
 file_type  = hdf5      # HDF5 data dump
 variable   = prim      # variables to be output
-dt         = 25.0     # time increment between outputs
+dt         = 10.0     # time increment between outputs
 next_time = 0.0
+x3_dsum = true
 
 <time>
 cfl_number =             0.3  # CFL number
 nlim       =              -1  # cycle limit
-tlim       =            10000 # cycle limit
+tlim       =            100000 # cycle limit
 integrator =             vl2  # time integration algorithm
 xorder     =               2  # order of spatial reconstruction
 ncycle_out =               1  # interval for stdout summary info
@@ -24,59 +25,500 @@ dt_max     =             2.0  # maximum timestep
 
 <mesh>
 nx1        = 256                # Number of zones in X1-direction
-x1min      = -1005.0              # minimum value of X1
-x1max      = -705.0              # maximum value of X1
+x1min      = -1312.0              # minimum value of X1
+x1max      = -812.0             # maximum value of X1
 ix1_bc     = user               # inner-X1 boundary flag
 ox1_bc     = user               # outer-X1 boundary flag
+refinement = static
 
 nx2        = 256                # Number of zones in X2-direction
-x2min      = -543.0               # minimum value of X2
-x2max      = -243.0                # maximum value of X2
+x2min      = -762.0               # minimum value of X2
+x2max      = -262.0                # maximum value of X2
 ix2_bc     = user            # inner-X2 boundary flag
 ox2_bc     = user           # outer-X2 boundary flag
 
 nx3        = 192                 # Number of zones in X3-direction
-x3min      = -112.5                  # minimum value of X3
-x3max      = 112.5                # maximum value of X3
+x3min      = -187.5                  # minimum value of X3
+x3max      = 187.5                # maximum value of X3
 ix3_bc     = user         # inner-X3 boundary flag
 ox3_bc     = user            # outer-X3 boundary flag
 
 <meshblock>
-nx1        = 32
-nx2        = 32
-nx3        = 32
+nx1        = 16
+nx2        = 16
+nx3        = 16
+
+<refinement1>
+x1min =           -1312
+x1max =       -1296.375
+x2min =     -593.386064
+x2max =     -553.386064
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement2>
+x1min =       -1296.375
+x1max =        -1280.75
+x2min =     -589.425673
+x2max =     -549.425673
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement3>
+x1min =        -1280.75
+x1max =       -1265.125
+x2min =     -585.465282
+x2max =     -545.465282
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement4>
+x1min =       -1265.125
+x1max =         -1249.5
+x2min =     -581.504891
+x2max =     -541.504891
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement5>
+x1min =         -1249.5
+x1max =       -1233.875
+x2min =     -577.544499
+x2max =     -537.544499
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement6>
+x1min =       -1233.875
+x1max =        -1218.25
+x2min =     -573.584108
+x2max =     -533.584108
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement7>
+x1min =        -1218.25
+x1max =       -1202.625
+x2min =     -569.623717
+x2max =     -529.623717
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement8>
+x1min =       -1202.625
+x1max =           -1187
+x2min =     -565.663326
+x2max =     -525.663326
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement9>
+x1min =           -1187
+x1max =       -1171.375
+x2min =     -561.702934
+x2max =     -521.702934
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement10>
+x1min =       -1171.375
+x1max =        -1155.75
+x2min =     -557.742543
+x2max =     -517.742543
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement11>
+x1min =        -1155.75
+x1max =       -1140.125
+x2min =     -553.782152
+x2max =     -513.782152
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement12>
+x1min =       -1140.125
+x1max =         -1124.5
+x2min =     -549.821761
+x2max =     -509.821761
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement13>
+x1min =         -1124.5
+x1max =       -1108.875
+x2min =     -545.861369
+x2max =     -505.861369
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement14>
+x1min =       -1108.875
+x1max =        -1093.25
+x2min =     -541.900978
+x2max =     -501.900978
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement15>
+x1min =        -1093.25
+x1max =       -1077.625
+x2min =     -537.940587
+x2max =     -497.940587
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement16>
+x1min =       -1077.625
+x1max =           -1062
+x2min =     -533.980196
+x2max =     -493.980196
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement17>
+x1min =           -1062
+x1max =       -1046.375
+x2min =     -530.019804
+x2max =     -490.019804
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement18>
+x1min =       -1046.375
+x1max =        -1030.75
+x2min =     -526.059413
+x2max =     -486.059413
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement19>
+x1min =        -1030.75
+x1max =       -1015.125
+x2min =     -522.099022
+x2max =     -482.099022
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement20>
+x1min =       -1015.125
+x1max =          -999.5
+x2min =     -518.138631
+x2max =     -478.138631
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement21>
+x1min =          -999.5
+x1max =        -983.875
+x2min =     -514.178239
+x2max =     -474.178239
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement22>
+x1min =        -983.875
+x1max =         -968.25
+x2min =     -510.217848
+x2max =     -470.217848
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement23>
+x1min =         -968.25
+x1max =        -952.625
+x2min =     -506.257457
+x2max =     -466.257457
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement24>
+x1min =        -952.625
+x1max =            -937
+x2min =     -502.297066
+x2max =     -462.297066
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement25>
+x1min =            -937
+x1max =        -921.375
+x2min =     -498.336674
+x2max =     -458.336674
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement26>
+x1min =        -921.375
+x1max =         -905.75
+x2min =     -494.376283
+x2max =     -454.376283
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement27>
+x1min =         -905.75
+x1max =        -890.125
+x2min =     -490.415892
+x2max =     -450.415892
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement28>
+x1min =        -890.125
+x1max =          -874.5
+x2min =     -486.455501
+x2max =     -446.455501
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement29>
+x1min =          -874.5
+x1max =        -858.875
+x2min =     -482.495109
+x2max =     -442.495109
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement30>
+x1min =        -858.875
+x1max =         -843.25
+x2min =     -478.534718
+x2max =     -438.534718
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement31>
+x1min =         -843.25
+x1max =        -827.625
+x2min =     -474.574327
+x2max =     -434.574327
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement32>
+x1min =        -827.625
+x1max =            -812
+x2min =     -470.613936
+x2max =     -430.613936
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement33>
+x1min =        -827.625
+x1max =            -812
+x2min =     -360.260387
+x2max =     -320.260387
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement34>
+x1min =         -843.25
+x1max =        -827.625
+x2min =     -371.340362
+x2max =     -331.340362
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement35>
+x1min =        -858.875
+x1max =         -843.25
+x2min =     -382.420337
+x2max =     -342.420337
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement36>
+x1min =          -874.5
+x1max =        -858.875
+x2min =     -393.500312
+x2max =     -353.500312
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement37>
+x1min =        -890.125
+x1max =          -874.5
+x2min =     -404.580287
+x2max =     -364.580287
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement38>
+x1min =         -905.75
+x1max =        -890.125
+x2min =     -415.660262
+x2max =     -375.660262
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement39>
+x1min =        -921.375
+x1max =         -905.75
+x2min =     -426.740237
+x2max =     -386.740237
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement40>
+x1min =            -937
+x1max =        -921.375
+x2min =     -437.820212
+x2max =     -397.820212
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement41>
+x1min =        -952.625
+x1max =            -937
+x2min =     -448.900187
+x2max =     -408.900187
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement42>
+x1min =         -968.25
+x1max =        -952.625
+x2min =     -459.980162
+x2max =     -419.980162
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement43>
+x1min =        -983.875
+x1max =         -968.25
+x2min =     -471.060137
+x2max =     -431.060137
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement44>
+x1min =          -999.5
+x1max =        -983.875
+x2min =     -482.140112
+x2max =     -442.140112
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement45>
+x1min =       -1015.125
+x1max =          -999.5
+x2min =     -493.220087
+x2max =     -453.220087
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement46>
+x1min =        -1030.75
+x1max =       -1015.125
+x2min =     -504.300062
+x2max =     -464.300062
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement47>
+x1min =       -1046.375
+x1max =        -1030.75
+x2min =     -515.380037
+x2max =     -475.380037
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement48>
+x1min =           -1062
+x1max =       -1046.375
+x2min =     -526.460012
+x2max =     -486.460012
+x3min =             -10
+x3max =              10
+level =               3
+
+<refinement49>
+x1min =           -1082
+x1max =           -1022
+x2min =            -537
+x2max =            -477
+x3min =             -10
+x3max =              10
+level =               3
 
 <hydro>
 gamma = 1.333333333333333 # gamma = C_p/C_v
-iso_sound_speed = 1.0     # isothermal sound speed
-dfloor          = 1.e-24 # density floor
-pfloor          = 1.e-27  # pressure floor
+dfloor          = 1.e-20 # density floor
+pfloor          = 1.e-23  # pressure floor
 
 <problem>
 
-rho1    =  3.27327658e-14
-K1      =  0.000687464882
-y1      =     -319.796895
-xdot1   =   -0.0305133602
-ydot1   =   -0.0238703274
-yp_max1 =      4.15348827
-zp_max1 =      3.06482901
-dvx_dy1 = -1.98011493e-05
-dvx_dy1 = -6.18645313e-05
-dvz_dz1 =  8.02370151e-05
+rho1    =   8.1640426e-14
+K1      =    0.0824067174
+y1      =     -334.720399
+xdot1   =   -0.0331154223
+ydot1   =   -0.0223482849
+yp_max1 =      9.50240747
+zp_max1 =      3.56498271
+dvx_dy1 = -2.84186677e-05
+dvy_dy1 = -2.47440777e-05
+dvz_dz1 =  6.80432253e-05
 
-rho2    =  4.64463659e-14
-K2      =  0.000624813712
-y2      =     -479.688505
-xdot2   =     0.028297744
-ydot2   =   0.00646323714
-yp_max2 =      8.99163638
-zp_max2 =      6.72835156
-dvx_dy2 =  5.35570168e-08
-dvx_dy2 = -2.35220246e-05
-dvz_dz2 = -1.13633462e-05
+rho2    =  9.88366201e-14
+K2      =    0.0745255672
+y2      =      -575.36626
+xdot2   =    0.0270248657
+ydot2   =   0.00646433862
+yp_max2 =      5.74587582
+zp_max2 =      6.04726029
+dvx_dy2 =  1.93493244e-07
+dvy_dy2 =  -1.0938751e-05
+dvz_dz2 = -1.04704892e-05
 
-delay   = 2.0e3
+delay   = 3.0e3
 
 <units>
 unit_system = custom

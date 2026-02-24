@@ -49,8 +49,8 @@ struct pgentde {
   Real rho_init;                 // initial density
   Real area0;                    // initial area factor
   AthenaArray<Real> time;        // time
-  AthenaArray<Real> r;           // radius
-  AthenaArray<Real> beta;        // velocity
+  AthenaArray<Real> T33;         // zz tidal (position) tensor component
+  AthenaArray<Real> D33;         // zz tidal (velocity) tensor component
   AthenaArray<Real> area;        // area factor
   AthenaArray<Real> areadot;     // area factor time derivative
   std::array<Real, 11> mcoord;   // mass coordinates at which to record outputs
@@ -190,8 +190,8 @@ void tdeSrcFunc(
   int idx;
   Real iparam;
   calcIparam(time, tde->num_time, tde->time, idx, iparam);
-  Real r = interp(idx, iparam, tde->r);
-  Real beta = interp(idx, iparam, tde->beta);
+  Real T33 = interp(idx, iparam, tde->T33);
+  Real D33 = interp(idx, iparam, tde->D33);
   Real area = interp(idx, iparam, tde->area);
   Real areadot = interp(idx, iparam, tde->areadot);
 
@@ -207,7 +207,7 @@ void tdeSrcFunc(
     q = 1.0 + pres / egas; // d(lnegas)/d(lnrho)|s
     
     // compute time derivatives
-    vdot = -z / (r*r*r) * (1.0 + beta*beta - 4.0 / r);
+    vdot = T33 * z + D33 * vel;
     rhodot = -rho * areadot / area;
     mask = prim_scalar(0, 0, 0, i);
     fac = exp(-(1.0 - mask) / 0.02);
@@ -239,8 +239,8 @@ Real calcEdotTide(MeshBlock *pmb, int iout) {
   Real iparam;
   Real time = pmb->pmy_mesh->time;
   calcIparam(time, tde->num_time, tde->time, idx, iparam);
-  Real r = interp(idx, iparam, tde->r);
-  Real beta = interp(idx, iparam, tde->beta);
+  Real T33 = interp(idx, iparam, tde->T33);
+  Real D33 = interp(idx, iparam, tde->D33);
 
   // loop over cells
   for (int i=pmb->is; i<=pmb->ie; i++) {
@@ -252,7 +252,7 @@ Real calcEdotTide(MeshBlock *pmb, int iout) {
     vel = pmb->phydro->w(IVX, 0, 0, i);
 
     // compute Edot
-    vdot = -z / (r*r*r) * (1.0 + beta*beta - 4.0 / r);
+    vdot = T33 * z + D33 * vel;
     mask = pmb->pscalars->r(0, 0, 0, i);
     fac = exp(-(1.0 - mask) / 0.02);
     Edot += -fac * dz * rho * vel * vdot;
@@ -599,8 +599,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   // read affine model solution
   hid_t file = H5Fopen(am_name.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
   readAM(file, "time", tde->time, tde->num_time);
-  readAM(file, "r", tde->r, tde->num_time);
-  readAM(file, "beta", tde->beta, tde->num_time);
+  readAM(file, "T33", tde->T33, tde->num_time);
+  readAM(file, "D33", tde->D33, tde->num_time);
   readAM(file, "area", tde->area, tde->num_time);
   readAM(file, "areadot", tde->areadot, tde->num_time);
   H5Fclose(file);

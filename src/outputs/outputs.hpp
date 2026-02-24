@@ -44,6 +44,7 @@ struct OutputParameters {
   int file_number;
   bool output_slicex1, output_slicex2, output_slicex3;
   bool output_sumx1, output_sumx2, output_sumx3;
+  bool output_dsumx1, output_dsumx2, output_dsumx3;
   bool include_ghost_zones, cartesian_vector;
   bool orbital_system_output;
   int islice, jslice, kslice;
@@ -52,6 +53,7 @@ struct OutputParameters {
   OutputParameters() : block_number(0), next_time(0.0), dt(0.0), file_number(0),
                        output_slicex1(false),output_slicex2(false),output_slicex3(false),
                        output_sumx1(false), output_sumx2(false), output_sumx3(false),
+                       output_dsumx1(false), output_dsumx2(false), output_dsumx3(false),
                        include_ghost_zones(false), cartesian_vector(false),
                        islice(0), jslice(0), kslice(0) {}
 };
@@ -103,6 +105,7 @@ class OutputType {
   bool TransformOutputData(MeshBlock *pmb);
   bool SliceOutputData(MeshBlock *pmb, int dim);
   void SumOutputData(MeshBlock *pmb, int dim);
+  void DSumOutputData(MeshBlock *pmb, int dim);
   void CalculateCartesianVector(AthenaArray<Real> &src, AthenaArray<Real> &dst,
                                 Coordinates *pco);
   bool ContainVariable(const std::string &haystack, const std::string &needle);

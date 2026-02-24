@@ -312,6 +312,9 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   if (output_params.output_sumx1) nx1=1;
   if (output_params.output_sumx2) nx2=1;
   if (output_params.output_sumx3) nx3=1;
+  if (output_params.output_dsumx1) nx1=1;
+  if (output_params.output_dsumx2) nx2=1;
+  if (output_params.output_dsumx3) nx3=1;
 
   // Allocate contiguous buffers for data in memory
   levels_mesh = new int[num_blocks_local];
@@ -342,13 +345,13 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       }
       LoadOutputData(pmb);
       TransformOutputData(pmb);
-      if (output_params.output_sumx1) {
+      if (output_params.output_sumx1 || output_params.output_dsumx1) {
         out_ie = out_is;
       }
-      if (output_params.output_sumx2) {
+      if (output_params.output_sumx2 || output_params.output_dsumx2) {
         out_je = out_js;
       }
-      if (output_params.output_sumx3) {
+      if (output_params.output_sumx3 || output_params.output_dsumx3) {
         out_ke = out_ks;
       }
 
@@ -365,7 +368,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         x1f_mesh[nba*(nx1+1)+1] = static_cast<H5Real>(
             pmb->pcoord->x1f(output_params.islice+1));
         x1v_mesh[nba*nx1] = static_cast<H5Real>(pmb->pcoord->x1v(output_params.islice));
-      } else if (output_params.output_sumx1) {
+      } else if (output_params.output_sumx1 || output_params.output_dsumx1) {
         x1f_mesh[nba*(nx1+1)] = pmb->pcoord->x1f(pmb->is);
         x1f_mesh[nba*(nx1+1)+1] = pmb->pcoord->x1f(pmb->ie+1);
         if (pmb->block_size.nx1 % 2 == 0) {
@@ -386,7 +389,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             = static_cast<H5Real>(pmb->pcoord->x2f(output_params.jslice+1));
         x2v_mesh[nba*nx2]
             = static_cast<H5Real>(pmb->pcoord->x2v(output_params.jslice));
-      } else if (output_params.output_sumx2) {
+      } else if (output_params.output_sumx2 || output_params.output_dsumx2) {
         x2f_mesh[nba*(nx2+1)] = pmb->pcoord->x2f(pmb->js);
         x2f_mesh[nba*(nx2+1)+1] = pmb->pcoord->x2f(pmb->je+1);
         if (pmb->block_size.nx2 % 2 == 0) {
@@ -407,7 +410,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             = static_cast<H5Real>(pmb->pcoord->x3f(output_params.kslice+1));
         x3v_mesh[nba*nx3]
             = static_cast<H5Real>(pmb->pcoord->x3v(output_params.kslice));
-      } else if (output_params.output_sumx3) {
+      } else if (output_params.output_sumx3 || output_params.output_dsumx3) {
         x3f_mesh[nba*(nx3+1)] = pmb->pcoord->x3f(pmb->ks);
         x3f_mesh[nba*(nx3+1)+1] = pmb->pcoord->x3f(pmb->ke+1);
         if (pmb->block_size.nx3 % 2 == 0) {

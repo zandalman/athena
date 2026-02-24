@@ -130,6 +130,27 @@ Real interp(const Real x, const int size, const Real xmin, const Real xmax, cons
   }
 };
 
+void TR13Accel(Real x, Real y, Real z, Real xdot, Real ydot, Real zdot, Real& xddot, Real& yddot, Real &zddot) {
+  
+  Real r, rm2, rv;
+  Real rxvx, rxvy, rxvz, rxvsq;
+  Real rinv5, fac1, fac2;
+  
+  r = sqrt(x*x + y*y + z*z);
+  rm2 = r - 2.0;
+  rv = x * xdot + y * ydot + z * zdot;
+  rxvx = y * zdot - z * ydot;
+  rxvy = z * xdot - x * zdot;
+  rxvz = x * ydot - y * xdot;
+  rxvsq = rxvx*rxvx + rxvy*rxvy + rxvz*rxvz;
+  rinv5 = 1.0 / (r*r*r*r*r);
+  fac1 = -rinv5 * (rm2*rm2 + 3.0*rxvsq);
+  fac2 = 2.0 * rv / (r * r * rm2);
+  xddot = x * fac1 + xdot * fac2;
+  yddot = y * fac1 + ydot * fac2;
+  zddot = z * fac1 + zdot * fac2;
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void gravAccel(...)
 //! \brief gravAccel: Gravitational acceleration from the generalized Newtonian potential of T&R13 ( https://arxiv.org/pdf/1303.4068 )
@@ -147,8 +168,8 @@ void gravAccel(
   Real rho;
   Real x, y, z;
   Real xdot, ydot, zdot;
-  Real r, rm2, rv, rxvx, rxvy, rxvz, rxvsq, rinv5, fac1, fac2;
   Real xddot, yddot, zddot;
+  Real pxdot, pydot, pzdot;
   Real mask;
   
   for (int k=pmb->ks; k<=pmb->ke; k++) {
@@ -168,26 +189,23 @@ void gravAccel(
         ydot = prim(IVY, k, j, i);
         zdot = prim(IVZ, k, j, i);
 
-        r = sqrt(x*x + y*y + z*z);
-        rm2 = r - 2.0;
-        rv = x * xdot + y * ydot + z * zdot;
-        rxvx = y * zdot - z * ydot;
-        rxvy = z * xdot - x * zdot;
-        rxvz = x * ydot - y * xdot;
-        rxvsq = rxvx*rxvx + rxvy*rxvy + rxvz*rxvz;
-        rinv5 = 1.0 / (r*r*r*r*r);
-        fac1 = -rinv5 * (rm2*rm2 + 3.0*rxvsq);
-        fac2 = 2.0 * rv / (r * r * rm2);
-        xddot = x * fac1 + xdot * fac2;
-        yddot = y * fac1 + ydot * fac2;
-        zddot = z * fac1 + zdot * fac2;
-        mask = 1.0 - pmb->pscalars->r(0, 0, 0, i); // mask out floor material
+        // mask out floor material
+        mask = 1.0 - pmb->pscalars->r(0, k, j, i);
+
+        // compute acceleration
+        TR13Accel(x, y, z, xdot, ydot, zdot, xddot, yddot, zddot);
+        
+        // momentum change       
+        pxdot = mask * rho * xddot * dt;
+        pydot = mask * rho * yddot * dt;
+        pzdot = mask * rho * zddot * dt;
         
         // momentum and energy source terms
-        cons(IM1, k, j, i) += mask * dt * rho * xddot;
-        cons(IM2, k, j, i) += mask * dt * rho * yddot;
-        cons(IM3, k, j, i) += mask * dt * rho * zddot;
-        cons(IEN, k, j, i) += mask * dt * rho * (xdot * xddot + ydot * yddot + zdot * zddot);
+        cons(IM1, k, j, i) += pxdot;
+        cons(IM2, k, j, i) += pydot;
+        cons(IM3, k, j, i) += pzdot;
+        cons(IEN, k, j, i) += pxdot * xdot + pydot * ydot + pzdot * zdot
+                              + (pxdot*pxdot + pydot*pydot + pzdot*pzdot) / (2.0 * rho);
 
       }
     }
@@ -330,6 +348,7 @@ void bndInjXin(
   Real frac;
   Real rho, pres;
   Real xdot, ydot, zdot;
+  Real taper;
   
   for (int k=kl; k<=ku; k++) {
     for (int j=jl; j<=ju; j++) {
@@ -348,12 +367,26 @@ void bndInjXin(
           ydot = s2->ydot + s2->dvy_dy * yp;
           zdot = s2->dvz_dz * zp;
           
-          // set ghost zone primatives: stream injection
-          prim(IDN, k, j, i) = rho;
-          prim(IVX, k, j, i) = xdot;
-          prim(IVY, k, j, i) = ydot;
-          prim(IVZ, k, j, i) = zdot;
-          prim(IPR, k, j, i) = 1.83685e-08 * s1->rho; //pres;
+          if ( frac < 0.8 ) {
+          
+            // set ghost zone primatives: stream injection
+            prim(IDN, k, j, i) = rho;
+            prim(IVX, k, j, i) = xdot;
+            prim(IVY, k, j, i) = ydot;
+            prim(IVZ, k, j, i) = zdot;
+            prim(IPR, k, j, i) = 1.83685e-08 * s1->rho; //pres;
+
+          } else {
+
+            // set ghost zone primatives: taper
+            taper = (frac - 0.8) / 0.2;
+            prim(IDN, k, j, i) = (1.0 - taper) * rho + taper * prim(IDN, k, j, il);
+            prim(IVX, k, j, i) = (1.0 - taper) * xdot + taper * std::min(0.0, prim(IVX, k, j, il));
+            prim(IVY, k, j, i) = (1.0 - taper) * ydot + taper * prim(IVY, k, j, il);
+            prim(IVZ, k, j, i) = (1.0 - taper) * zdot + taper * prim(IVZ, k, j, il);
+            prim(IPR, k, j, i) = (1.0 - taper) * 1.83685e-08 * s1->rho + taper * prim(IPR, k, j, il);
+
+          }
 
         } else { // out of stream
 
@@ -389,6 +422,7 @@ void bndInjXout(
   Real frac;
   Real rho, pres;
   Real xdot, ydot, zdot;
+  Real taper;
   
   for (int k=kl; k<=ku; k++) {
     for (int j=jl; j<=ju; j++) {
@@ -406,13 +440,27 @@ void bndInjXout(
           xdot = s1->xdot + s1->dvx_dy * yp;
           ydot = s1->ydot + s1->dvy_dy * yp;
           zdot = s1->dvz_dz * zp;
+
+          if ( frac < 0.8 ) {
           
-          // set ghost zone primatives: stream injection
-          prim(IDN, k, j, i) = rho;
-          prim(IVX, k, j, i) = xdot;
-          prim(IVY, k, j, i) = ydot;
-          prim(IVZ, k, j, i) = zdot;
-          prim(IPR, k, j, i) = 1.83685e-08 * s1->rho; //pres;
+            // set ghost zone primatives: stream injection
+            prim(IDN, k, j, i) = rho;
+            prim(IVX, k, j, i) = xdot;
+            prim(IVY, k, j, i) = ydot;
+            prim(IVZ, k, j, i) = zdot;
+            prim(IPR, k, j, i) = 1.83685e-08 * s1->rho; //pres;
+
+          } else {
+
+            // set ghost zone primatives: taper
+            taper = (frac - 0.8) / 0.2;
+            prim(IDN, k, j, i) = (1.0 - taper) * rho + taper * prim(IDN, k, j, iu);
+            prim(IVX, k, j, i) = (1.0 - taper) * xdot + taper * std::max(0.0, prim(IVX, k, j, iu));
+            prim(IVY, k, j, i) = (1.0 - taper) * ydot + taper * prim(IVY, k, j, iu);
+            prim(IVZ, k, j, i) = (1.0 - taper) * zdot + taper * prim(IVZ, k, j, iu);
+            prim(IPR, k, j, i) = (1.0 - taper) * 1.83685e-08 * s1->rho + taper * prim(IPR, k, j, iu);
+
+          }
 
         } else { // out of stream
 
@@ -445,6 +493,98 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   return;
 
 };
+
+// void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
+
+//   AllocateRealUserMeshDataField(3);
+//   iuser_meshblock_data[0].NewAthenaArray(257, 257);
+//   iuser_meshblock_data[1].NewAthenaArray(257, 257);
+//   iuser_meshblock_data[2].NewAthenaArray(256, 256);
+  
+//   for(int j=0; j<257; j++) {
+//     for(int i=0; i<257; i++) {
+//       iuser_mesh_data[0](j, i) = static_cast<Real>(i)/256.0 * 2.0 - 1.0;           // cos(th)
+//       iuser_mesh_data[1](j, i) = (static_cast<Real>(j)/256.0 * 2.0 - 1.0) * M_PI;  // phi
+//       iuser_mesh_data[2](j, i) = 0.0;                                              // mass flux                  
+//     }
+//   }
+
+// }
+
+// void MeshBlock::UserWorkInLoop(void) {
+
+//   Real x, y, z;
+//   Real r, cos_th, phi;
+
+//   for(int k=ks; k<=ke; k++) {
+//     for(int j=js; j<=je; j++) {
+//       for(int i=is; i<=ie; i++) {
+  
+//         // positions
+//         x = pmb->pcoord->x1v(i) - xc;
+//         y = pmb->pcoord->x2v(j) - yc;
+//         z = pmb->pcoord->x3v(k);
+        
+//         r = sqrt(x*x + y*y + z*z);
+//         if (r - )
+
+//         cos_th = z / r;
+//         phi = atan2(y, x);
+
+
+      
+//       }
+//     }
+//   }
+
+// }
+
+// void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
+  
+//   Real x, y, z;
+//   Real xdot, ydot, zdot;
+//   Real rho, pres, vsq;
+//   Real r, rv, rm2;
+//   Real rxvx, rxvy, rxvz, rxvsq;
+//   Real ener, h, be;
+  
+//   for(int k=ks; k<=ke; k++) {
+//     for(int j=js; j<=je; j++) {
+//       for(int i=is; i<=ie; i++) {
+        
+//         // positions
+//         x = pmb->pcoord->x1v(i);
+//         y = pmb->pcoord->x2v(j);
+//         z = pmb->pcoord->x3v(k);
+
+//         // velocities
+//         xdot = prim(IVX, k, j, i);
+//         ydot = prim(IVY, k, j, i);
+//         zdot = prim(IVZ, k, j, i);
+        
+//         // fluid variables
+//         rho = phydro->w(IDN, k, j, i);
+//         pres = phydro->w(IPR, k, j, i);
+
+//         // orbital energy and angular momentum
+//         r = sqrt(x*x + y*y + z*z);
+//         rm2 = r - 2.0;
+//         rv = x * xdot + y * ydot + z * zdot;
+//         rxvx = y * zdot - z * ydot;
+//         rxvy = z * xdot - x * zdot;
+//         rxvz = x * ydot - y * xdot;
+//         rxvsq = rxvx*rxvx + rxvy*rxvy + rxvz*rxvz;
+//         ener = 0.5 / (rm2*rm2) * (rv*rv + r*rm2 * rxvsq / (r*r)) - 1.0/r;
+//         be = ener + gam / (gam - 1.0) * pres / rho;
+        
+//         user_out_var(2, k, j, i) = be;
+//         user_out_var(2, k, j, i) = rho*rho;
+//         user_out_var(3, k, j, i) = rho*pres;
+//       }
+//     }
+//   }
+
+// }
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
