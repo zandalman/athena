@@ -42,7 +42,11 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) :
   egas_unit_{pin->GetOrAddReal("hydro", "eos_egas_unit", 1.0)},
   inv_egas_unit_{1.0/egas_unit_},
   vsqr_unit_{egas_unit_/rho_unit_},
-  inv_vsqr_unit_{1.0/vsqr_unit_}
+  inv_vsqr_unit_{1.0/vsqr_unit_},
+  arad_{pmb->pmy_mesh->punit->radiation_aconst_code},
+  kB_{pmb->pmy_mesh->punit->k_boltzmann_code},
+  mp_{pmb->pmy_mesh->punit->hydrogen_mass_code},
+  mu_{pin->GetOrAddReal("problem", "mu", 0.6)}
   {
   if (pin->DoesParameterExist("hydro", "efloor")) {
     energy_floor_ = pin->GetReal("hydro", "efloor");
@@ -53,6 +57,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) :
     energy_floor_ = pressure_floor_/(pin->GetOrAddReal("hydro", "gamma", 2.) - 1.);
     pin->SetReal("hydro", "efloor", energy_floor_);
   }
+
+  std::cout << EOS_TABLE_ENABLED << std::endl;
+  
   if (EOS_TABLE_ENABLED) {
     if (!ptable) {
       std::stringstream msg;
@@ -149,6 +156,7 @@ void EquationOfState::PrimitiveToConserved(
         u_m2 = w_vy*w_d;
         u_m3 = w_vz*w_d;
         // cellwise conversion
+        // u_e = EgasFromRhoP(u_d, w_p) + 0.5*w_d*(SQR(w_vx) + SQR(w_vy) + SQR(w_vz));
         u_e = EgasFromRhoP(u_d, w_p) + 0.5*w_d*(SQR(w_vx) + SQR(w_vy) + SQR(w_vz));
       }
     }

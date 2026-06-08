@@ -100,7 +100,7 @@ parser.add_argument(
 parser.add_argument('--eos',
                     default='adiabatic',
                     choices=['adiabatic', 'isothermal', 'general/eos_table',
-                             'general/hydrogen', 'general/ideal'],
+                             'general/hydrogen', 'general/ideal', 'general/ideal_rad', 'general/C+19'],
                     help='select equation of state')
 
 # --flux=[name] argument
@@ -472,6 +472,8 @@ else:
     makefile_options['GENERAL_EOS_FILE'] = 'general'
     definitions['NHYDRO_VARIABLES'] = '5'
     if args['eos'] == 'general/eos_table':
+        definitions['EOS_TABLE_ENABLED'] = '1'
+    if args['eos'] == 'general/C+19':
         definitions['EOS_TABLE_ENABLED'] = '1'
 
 # --flux=[name] argument
