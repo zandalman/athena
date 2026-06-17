@@ -8,34 +8,34 @@ problem_id = tde_si  # problem ID: basename of output filenames
 
 <output1>
 file_type  = hdf5      # HDF5 data dump
-variable   = d,p,v,r0  # variables to be output
+variable   = prim  # variables to be output
 id         = slicez
 dt         = 100.0      # time increment between outputs
 next_time  = 0.0
 x3_slice   = 0.0
 
-<output2>
-file_type  = hdf5      # HDF5 data dump
-variable   = one,d,p,v # variables to be output
-id         = sumz
-dt         = 100.0      # time increment between outputs
-next_time  = 0.0
-x3_dsum    = true
+#<output2>
+#file_type  = hdf5      # HDF5 data dump
+#variable   = one,prim # variables to be output
+#id         = sumz
+#dt         = 100.0      # time increment between outputs
+#next_time  = 0.0
+#x3_dsum    = true
 
-<output3>
-file_type  = hdf5      # HDF5 data dump
-variable   = one,d,p,v # variables to be output
-id         = sumy
-dt         = 100.0      # time increment between outputs
-next_time  = 0.0
-x2_dsum    = true
+#<output3>
+#file_type  = hdf5      # HDF5 data dump
+#variable   = one,prim # variables to be output
+#id         = sumy
+#dt         = 100.0      # time increment between outputs
+#next_time  = 0.0
+#x2_dsum    = true
 
-<output4>
-file_type  = hdf5      # HDF5 data dump
-variable   = uov # variables to be output
-id         = tavg
-dt         = 1000.0      # time increment between outputs
-next_time  = 1000.0
+#<output4>
+#file_type  = hdf5      # HDF5 data dump
+#variable   = uov # variables to be output
+#id         = tavg
+#dt         = 1000.0      # time increment between outputs
+#next_time  = 1000.0
 
 <output5>
 file_type  = rst      # restart data dump
@@ -64,6 +64,14 @@ xorder     =               2  # order of spatial reconstruction
 ncycle_out =               1  # interval for stdout summary info
 start_time =             0.0  # time of simulation start
 dt_max     =             2.0  # maximum timestep 
+
+<radiation>
+nmu = 2
+prat = 27832037481.61566
+crat = 1.0
+n_frequency = 1
+nlimit           = 50       # maximum number of iterations to try
+error_limit      = 1.e-6    # tolerance level of iteration
 
 <mesh>
 nx1        = 128                # Number of zones in X1-direction
@@ -316,7 +324,7 @@ x3max =              10
 level =               3
 
 <hydro>
-gamma = 1.333333333333333 # gamma = C_p/C_v
+gamma = 1.66666666666667 # gamma = C_p/C_v
 dfloor          = 1.e-20 # density floor
 pfloor          = 1.e-28  # pressure floor
 

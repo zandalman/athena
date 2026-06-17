@@ -1,0 +1,127 @@
+<comment>
+problem   = TDE self-intersection
+reference =
+configure = --prob=streamkh
+
+<job>
+problem_id = streamkh # problem ID: basename of output filenames
+
+<output1>
+file_type  = hdf5      # HDF5 data dump
+variable   = d,p,v,r0  # variables to be output
+id         = slicez
+dt         = 1.0     # time increment between outputs
+x3_slice   = 0.0
+
+<output2>
+file_type  = hdf5      # HDF5 data dump
+variable   = d,p,v,r0  # variables to be output
+id         = slicex
+dt         = 1.0     # time increment between outputs
+x1_slice   = 0.0
+
+<output3>
+file_type  = hdf5      # HDF5 data dump
+variable   = d,p,v,r0  # variables to be output
+id         = sumx
+dt         = 10.0     # time increment between outputs
+x1_sum     = true
+
+<output4>
+file_type  = hdf5      # HDF5 data dump
+variable   = d,p,v,r0  # variables to be output
+id         = 3d
+dt         = 25.0     # time increment between outputs
+
+<output5>
+file_type  = hst      # HDF5 data dump
+dt         = 0.1     # time increment between outputs
+
+<output6>
+file_type  = rst      # restart data dump
+id         = restart
+dt         = 100.0     # time increment between outputs
+
+<time>
+cfl_number =             0.3  # CFL number
+nlim       =              -1  # cycle limit
+tlim       =            100000 # cycle limit
+integrator =             vl2  # time integration algorithm
+xorder     =               2  # order of spatial reconstruction
+ncycle_out =               1  # interval for stdout summary info
+start_time =             0.0  # time of simulation start
+
+<mesh>
+refinement = static
+
+nx1        = 128                # Number of zones in X1-direction
+x1min      = -16.0              # minimum value of X1
+x1max      = 16.0             # maximum value of X1
+ix1_bc     = periodic               # inner-X1 boundary flag
+ox1_bc     = periodic               # outer-X1 boundary flag
+
+nx2        = 128                # Number of zones in X2-direction
+x2min      = -16.0               # minimum value of X2
+x2max      = 16.0                # maximum value of X2
+ix2_bc     = periodic            # inner-X2 boundary flag
+ox2_bc     = periodic           # outer-X2 boundary flag
+
+nx3        = 128                 # Number of zones in X3-direction
+x3min      = -16.0                  # minimum value of X3
+x3max      = 16.0                # maximum value of X3
+ix3_bc     = periodic         # inner-X3 boundary flag
+ox3_bc     = periodic            # outer-X3 boundary flag
+
+<meshblock>
+nx1        = 32
+nx2        = 32
+nx3        = 32
+
+<refinement1>
+x1min = -16.0
+x1max = 16.0
+x2min = -8.0
+x2max = 8.0
+x3min = -8.0
+x3max = 8.0
+level = 1
+
+<refinement2>
+x1min = -16.0
+x1max = 16.0
+x2min = -4.0
+x2max = 4.0
+x3min = -4.0
+x3max = 4.0
+level = 2
+
+<refinement3>
+x1min = -16.0
+x1max = 16.0
+x2min = -2.0
+x2max = 2.0
+x3min = -2.0
+x3max = 2.0
+level = 3
+
+<hydro>
+gamma = 1.66666666666667 # gamma = C_p/C_v
+dfloor          = 1.e-3 # density floor
+pfloor          = 1.e-3 # pressure floor
+
+<problem>
+dlt    = 1.e1    # stream-to-background density ratio
+mach_s = 1000.0    # mach number relative to stream
+mach_b = 2.0     # mach number relative to background
+tide   = 1.0     # tidal acceleration relative to ram pressure acceleration
+amp    = 0.01    # velocity perturbation amplitude
+sig1   = 0.03125 # shear layer cylindrical width
+sig2   = 0.0625  # velocity perturbation cylindrical width
+psi    = 0.0    # background flow angle
+
+profile = polytrope
+seeding = mode
+kmin   = 2       # minimum longitudinal wavenumber
+kmax   = 64      # maximum longitudinal wavenumber
+mmin   = 0       # minimum azimuthal wavenumber
+mmax   = 4       # maximum azimuthal wavenumber

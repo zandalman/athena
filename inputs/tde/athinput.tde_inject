@@ -1,0 +1,97 @@
+<comment>
+problem   = TDE self-intersection
+reference =
+configure = --prob=tde_inject
+
+<job>
+problem_id = tde_inject  # problem ID: basename of output filenames
+
+<output1>
+file_type  = hdf5      # HDF5 data dump
+variable   = d,p,v,r0  # variables to be output
+id         = sliceth
+dt         = 100.0      # time increment between outputs
+x2_slice   = 1.5707963267948966
+
+#<output2>
+#file_type  = hdf5      # HDF5 data dump
+#variable   = one,d,p,v # variables to be output
+#id         = sumth
+#dt         = 100.0      # time increment between outputs
+#x2_dsum    = true
+
+#<output3>
+#file_type  = hdf5      # HDF5 data dump
+#variable   = one,d,p,v # variables to be output
+#id         = sumphi
+#dt         = 100.0      # time increment between outputs
+#x3_dsum    = true
+
+<time>
+cfl_number =             0.3  # CFL number
+nlim       =              -1  # cycle limit
+tlim       =            100000 # cycle limit
+integrator =             vl2  # time integration algorithm
+xorder     =               2  # order of spatial reconstruction
+ncycle_out =               1  # interval for stdout summary info
+start_time =             0.0  # time of simulation start
+dt_max     =             2.0  # maximum timestep 
+
+<mesh>
+
+refinement = static
+
+nx1        = 128                # Number of zones in X1-direction
+x1min      = 1.95208853895974              # minimum value of X1
+x1max      = 2000.0             # maximum value of X1
+x1rat      = 1.02454369260617
+ix1_bc     = user               # inner-X1 boundary flag
+ox1_bc     = user               # outer-X1 boundary flag
+
+nx2        = 128                # Number of zones in X2-direction
+x2min      = 0.0               # minimum value of X2
+x2max      = 3.141592653589793                # maximum value of X2
+ix2_bc     = polar            # inner-X2 boundary flag
+ox2_bc     = polar           # outer-X2 boundary flag
+
+nx3        = 256                 # Number of zones in X3-direction
+x3min      = 0.0                  # minimum value of X3
+x3max      = 6.283185307179586                # maximum value of X3
+ix3_bc     = periodic         # inner-X3 boundary flag
+ox3_bc     = periodic            # outer-X3 boundary flag
+
+<coord>
+m = 1.0
+
+<meshblock>
+nx1        = 32
+nx2        = 32
+nx3        = 32
+
+<refinement1>
+x1min       =      793.326561
+x1max       =      1093.32654
+x2min       =       1.4131048
+x2max       =      1.72848785
+x3min       =      3.46556474
+x3max       =       3.7809478
+level       =               2
+
+<hydro>
+gamma = 1.333333333333333 # gamma = C_p/C_v
+dfloor          = 1.e-23 # density floor
+rho_min         = 1.e-18 # density floor 
+rho_pow         = -1.5
+pfloor          = 1.e-33  # pressure floor
+pgas_min        = 1.e-26  # pressure floor
+pgas_pow        = -2.0
+
+<problem>
+rinj = 100.0
+inj_file = /home/za9132/scratch/tde_si/inject/inject.000
+
+<units>
+unit_system = custom
+length_cgs = 1.4770934e+11  # gravitational radius
+mass_cgs = 1.9891e+39       # BH mass
+time_cgs = 4.9270606        # light-crossing time of gravitational radius

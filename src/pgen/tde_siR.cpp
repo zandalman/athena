@@ -23,6 +23,7 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
@@ -32,13 +33,16 @@
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
 #include "../units/units.hpp"
+#include "../hydro/srcterms/hydro_srcterms.hpp"
+#include "../nr_radiation/integrators/rad_integrators.hpp"
+#include "../nr_radiation/radiation.hpp"
 
 struct pgen_poly {
   int size;
-  Real dfrac;
-  AthenaArray<Real> rho_rhoc;
   Real dt_max;
   Real delay;
+  Real dfrac;
+  AthenaArray<Real> rho_rhoc;
   Real pres_inj;
 };
 
@@ -151,6 +155,43 @@ void TR13Accel(Real x, Real y, Real z, Real xdot, Real ydot, Real zdot, Real& xd
   zddot = z * fac1 + zdot * fac2;
 }
 
+void CustomOpacity(MeshBlock *pmb, AthenaArray<Real> &prim) {
+
+  Real kap_unit = 1.096880398972671e-17;
+  Real density_unit = 617209.7495090674;
+  Real mmw_kB = 6721123849354.159;
+  
+  Real abX = 0.7; // Hydrogen abundance
+  Real abZ = 0.02; // metal abundance
+  Real kap_es = 0.34 / kap_unit; // 0.2 (1 + X) cm^2/g
+  Real kap_kr_prefac = 4.e25 * (1.0 + abX) * (abZ + 0.001) / kap_unit; // 4e25 (1 + X) (Z + 0.001)
+  
+  Real rho, pres, temp, mask;
+  Real rho_cgs;
+  Real kap_kr;
+  
+  for (int k=0; k<pmb->ncells3; ++k) {
+    for (int j=0; j<pmb->ncells2; ++j) {
+      for (int i=0; i<pmb->ncells1; ++i) {
+            
+        // primatives in gas units
+        rho = pmb->phydro->w(IDN, k, j, i);
+        pres = pmb->phydro->w(IPR, k, j, i);
+        temp = pres / rho * mmw_kB;
+        mask = 1.0 - pmb->pscalars->r(0, k, j, i);
+        kap_kr = kap_kr_prefac * (rho / density_unit) / pow(temp, 3.5);
+      
+        pmb->pnrrad->sigma_s(k, j, i, 0)  = mask * kap_es * rho;
+        pmb->pnrrad->sigma_a(k, j, i, 0)  = mask * kap_kr * rho;
+        pmb->pnrrad->sigma_pe(k, j, i, 0) = mask * kap_kr * rho;
+        pmb->pnrrad->sigma_p(k, j, i, 0)  = mask * kap_kr * rho;
+
+      }
+    }
+  }
+
+};
+
 //----------------------------------------------------------------------------------------
 //! \fn void gravAccel(...)
 //! \brief gravAccel: Gravitational acceleration from the generalized Newtonian potential of T&R13 ( https://arxiv.org/pdf/1303.4068 )
@@ -190,7 +231,7 @@ void gravAccel(
         zdot = prim(IVZ, k, j, i);
 
         // mask out floor material
-        mask = 1.0 - pmb->pscalars->r(0, k, j, i);
+        mask = 1.0 - prim_scalar(0, k, j, i);
 
         // compute acceleration
         TR13Accel(x, y, z, xdot, ydot, zdot, xddot, yddot, zddot);
@@ -244,6 +285,31 @@ void bndDiodeZin(
 
 }
 
+void bndRDiodeZin(
+  MeshBlock *pmb,
+  Coordinates *pco,
+  NRRadiation *prad,
+  const AthenaArray<Real> &w,
+  FaceField &b,
+  AthenaArray<Real> &ir,
+  Real time,
+  Real dt,
+  int is, int ie, int js,
+  int je, int ks, int ke, 
+  int ngh
+) {
+  for (int k=1; k<=ngh; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
+        for (int n=0; n<prad->nang; ++n) {
+          ir(ks-k,j,i,n) = ir(ks,j,i,n);
+        }
+      }
+    }
+  }
+  return;
+}
+
 void bndDiodeZout(
   MeshBlock *pmb, 
   Coordinates *pco, 
@@ -271,6 +337,31 @@ void bndDiodeZout(
     }
   }
 
+}
+
+void bndRDiodeZout(
+  MeshBlock *pmb,
+  Coordinates *pco,
+  NRRadiation *prad,
+  const AthenaArray<Real> &w,
+  FaceField &b,
+  AthenaArray<Real> &ir,
+  Real time,
+  Real dt,
+  int is, int ie, int js,
+  int je, int ks, int ke, 
+  int ngh
+) {
+  for (int k=1; k<=ngh; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
+        for (int n=0; n<prad->nang; ++n) {
+          ir(ke+k,j,i,n) = ir(ke,j,i,n);
+        }
+      }
+    }
+  }
+  return;
 }
 
 void bndDiodeYin(
@@ -302,6 +393,31 @@ void bndDiodeYin(
 
 }
 
+void bndRDiodeYin(
+  MeshBlock *pmb,
+  Coordinates *pco,
+  NRRadiation *prad,
+  const AthenaArray<Real> &w,
+  FaceField &b,
+  AthenaArray<Real> &ir,
+  Real time,
+  Real dt,
+  int is, int ie, int js,
+  int je, int ks, int ke, 
+  int ngh
+) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+      for (int i=is; i<=ie; ++i) {
+        for (int n=0; n<prad->nang; ++n) {
+          ir(k,js-j,i,n) = ir(k,js,i,n);
+        }
+      }
+    }
+  }
+  return;
+}
+
 void bndDiodeYout(
   MeshBlock *pmb, 
   Coordinates *pco, 
@@ -329,6 +445,31 @@ void bndDiodeYout(
     }
   }
 
+}
+
+void bndRDiodeYout(
+  MeshBlock *pmb,
+  Coordinates *pco,
+  NRRadiation *prad,
+  const AthenaArray<Real> &w,
+  FaceField &b,
+  AthenaArray<Real> &ir,
+  Real time,
+  Real dt,
+  int is, int ie, int js,
+  int je, int ks, int ke, 
+  int ngh
+) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=1; j<=ngh; ++j) {
+      for (int i=is; i<=ie; ++i) {
+        for (int n=0; n<prad->nang; ++n) {
+          ir(k,je+j,i,n) = ir(k,je,i,n);
+        }
+      }
+    }
+  }
+  return;
 }
 
 void bndInjXin(
@@ -404,6 +545,31 @@ void bndInjXin(
 
 };
 
+void bndRDiodeXin(
+  MeshBlock *pmb,
+  Coordinates *pco,
+  NRRadiation *prad,
+  const AthenaArray<Real> &w,
+  FaceField &b,
+  AthenaArray<Real> &ir,
+  Real time,
+  Real dt,
+  int is, int ie, int js,
+  int je, int ks, int ke, 
+  int ngh
+) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=1; i<=ngh; ++i) {
+        for (int n=0; n<prad->nang; ++n) {
+          ir(k,j,is-i,n) = ir(k,j,is,n);
+        }
+      }
+    }
+  }
+  return;
+}
+
 void bndInjXout(
   MeshBlock *pmb, 
   Coordinates *pco,
@@ -477,59 +643,32 @@ void bndInjXout(
 
 };
 
-Real calc_dt_cs(MeshBlock *pmb, int iout) {
-  
-  Real dx, rho, pres, cssq;
-  Real CFL = 0.3;
-  Real gam = 4.0/3.0;
-  Real dt = 1.0e10;
-  
-  for(int k=pmb->ks; k<=pmb->ke; k++) {
-    for(int j=pmb->js; j<=pmb->je; j++) {
-      for(int i=pmb->is; i<=pmb->ie; i++) {
-
-        dx = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
-        rho = pmb->phydro->w(IDN, k, j, i);
-        pres = pmb->phydro->w(IPR, k, j, i);
-        cssq = gam * pres / rho;
-        dt = std::min(dt, CFL * dx / sqrt(cssq));
-
+void bndRDiodeXout(
+  MeshBlock *pmb,
+  Coordinates *pco,
+  NRRadiation *prad,
+  const AthenaArray<Real> &w,
+  FaceField &b,
+  AthenaArray<Real> &ir,
+  Real time,
+  Real dt,
+  int is, int ie, int js,
+  int je, int ks, int ke, 
+  int ngh
+) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=1; i<=ngh; ++i) {
+        for (int n=0; n<prad->nang; ++n) {
+          ir(k,j,ie+i,n) = ir(k,j,ie,n);
+        }
       }
     }
   }
-  return dt;
-}
-
-Real calc_dt_vel(MeshBlock *pmb, int iout) {
-  
-  Real dx, rho, vx, vy, vz, vsq;
-  Real CFL = 0.3;
-  Real dt = 1.0e10;
-  
-  for(int k=pmb->ks; k<=pmb->ke; k++) {
-    for(int j=pmb->js; j<=pmb->je; j++) {
-      for(int i=pmb->is; i<=pmb->ie; i++) {
-
-        dx = pmb->pcoord->x1f(i+1) - pmb->pcoord->x1f(i);
-        rho = pmb->phydro->w(IDN, k, j, i);
-        vx = pmb->phydro->w(IVX, k, j, i);
-        vy = pmb->phydro->w(IVY, k, j, i);
-        vz = pmb->phydro->w(IVZ, k, j, i);
-        vsq = vx*vx + vy*vy + vz*vz;
-        if (vsq == 0.0) continue;
-        dt = std::min(dt, CFL * dx / sqrt(vsq));
-
-      }
-    }
-  }
-  return dt;
+  return;
 }
 
 void Mesh::InitUserMeshData(ParameterInput *pin) {
-
-  //AllocateUserHistoryOutput(2);
-  //EnrollUserHistoryOutput(0, calc_dt_cs, "dt_cs", UserHistoryOperation::min);
-  //EnrollUserHistoryOutput(1, calc_dt_vel, "dt_vel", UserHistoryOperation::min);
   
   EnrollUserBoundaryFunction(BoundaryFace::inner_x3, bndDiodeZin);
   EnrollUserBoundaryFunction(BoundaryFace::outer_x3, bndDiodeZout);
@@ -537,6 +676,14 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   EnrollUserBoundaryFunction(BoundaryFace::outer_x2, bndDiodeYout);
   EnrollUserBoundaryFunction(BoundaryFace::inner_x1, bndInjXin);
   EnrollUserBoundaryFunction(BoundaryFace::outer_x1, bndInjXout);
+
+  EnrollUserRadBoundaryFunction(BoundaryFace::inner_x3, bndRDiodeZin);
+  EnrollUserRadBoundaryFunction(BoundaryFace::outer_x3, bndRDiodeZout);
+  EnrollUserRadBoundaryFunction(BoundaryFace::inner_x2, bndRDiodeYin);
+  EnrollUserRadBoundaryFunction(BoundaryFace::outer_x2, bndRDiodeYout);
+  EnrollUserRadBoundaryFunction(BoundaryFace::inner_x1, bndRDiodeXin);
+  EnrollUserRadBoundaryFunction(BoundaryFace::outer_x1, bndRDiodeXout);
+
   EnrollUserExplicitSourceFunction(gravAccel);
   EnrollUserTimeStepFunction(myTimeStep);
 
@@ -554,16 +701,18 @@ void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
   SetUserOutputVariableName(4, "Etot");
 
   AllocateRealUserMeshBlockDataField(6);
-  ruser_meshblock_data[0].NewAthenaArray(block_size.nx3, block_size.nx2, block_size.nx1);
-  ruser_meshblock_data[1].NewAthenaArray(block_size.nx3, block_size.nx2, block_size.nx1);
-  ruser_meshblock_data[2].NewAthenaArray(block_size.nx3, block_size.nx2, block_size.nx1);
-  ruser_meshblock_data[3].NewAthenaArray(block_size.nx3, block_size.nx2, block_size.nx1);
-  ruser_meshblock_data[4].NewAthenaArray(block_size.nx3, block_size.nx2, block_size.nx1);
+  ruser_meshblock_data[0].NewAthenaArray(ncells3, ncells2, ncells1);
+  ruser_meshblock_data[1].NewAthenaArray(ncells3, ncells2, ncells1);
+  ruser_meshblock_data[2].NewAthenaArray(ncells3, ncells2, ncells1);
+  ruser_meshblock_data[3].NewAthenaArray(ncells3, ncells2, ncells1);
+  ruser_meshblock_data[4].NewAthenaArray(ncells3, ncells2, ncells1);
   ruser_meshblock_data[5].NewAthenaArray(1);
+
+  pnrrad->EnrollOpacityFunction(CustomOpacity);
   
-  for(int k=0; k<block_size.nx3; k++) {
-    for(int j=0; j<block_size.nx2; j++) {
-      for(int i=0; i<block_size.nx1; i++) {
+  for(int k=0; k<ncells3; k++) {
+    for(int j=0; j<ncells2; j++) {
+      for(int i=0; i<ncells1; i++) {
         for(int n=0; n<5; n++) {
         ruser_meshblock_data[n](k, j, i) = 0.0;
         }               
@@ -574,57 +723,57 @@ void MeshBlock::InitUserMeshBlockData(ParameterInput *pin) {
 
 }
 
-void MeshBlock::UserWorkInLoop(void) {
+// void MeshBlock::UserWorkInLoop(void) {
 
-  int ii, jj, kk;
-  Real dt = pmy_mesh->dt;
+//   int ii, jj, kk;
+//   Real dt = pmy_mesh->dt;
 
-  for(int k=ks; k<=ke; k++) {
-    for(int j=js; j<=je; j++) {
-      for(int i=is; i<=ie; i++) {
+//   for(int k=ks; k<=ke; k++) {
+//     for(int j=js; j<=je; j++) {
+//       for(int i=is; i<=ie; i++) {
   
-        kk = k-ks;
-        jj = j-js;
-        ii = i-is;
+//         kk = k-ks;
+//         jj = j-js;
+//         ii = i-is;
         
-        for(int n=0; n<5; n++) {
-          ruser_meshblock_data[n](kk, jj, ii) += phydro->u(n, k, j, i) * dt;
-        }
+//         for(int n=0; n<5; n++) {
+//           ruser_meshblock_data[n](kk, jj, ii) += phydro->u(n, k, j, i) * dt;
+//         }
       
-      }
-    }
-  }
-  ruser_meshblock_data[5](0) += dt;
+//       }
+//     }
+//   }
+//   ruser_meshblock_data[5](0) += dt;
 
-}
+// }
 
-void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
+// void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin) {
   
-  int ii, jj, kk;
-  Real dt_out4 = pin->GetReal("output4", "dt");
+//   int ii, jj, kk;
+//   Real dt_out4 = pin->GetReal("output4", "dt");
 
-  if (ruser_meshblock_data[5](0) >= 0.9999 * dt_out4) {
-    for(int k=ks; k<=ke; k++) {
-      for(int j=js; j<=je; j++) {
-        for(int i=is; i<=ie; i++) {
+//   if (ruser_meshblock_data[5](0) >= 0.9999 * dt_out4) {
+//     for(int k=ks; k<=ke; k++) {
+//       for(int j=js; j<=je; j++) {
+//         for(int i=is; i<=ie; i++) {
 
-          kk = k-ks;
-          jj = j-js;
-          ii = i-is;
+//           kk = k-ks;
+//           jj = j-js;
+//           ii = i-is;
           
-          for(int n=0; n<5; n++) {
-            user_out_var(n, k, j, i) = ruser_meshblock_data[n](kk, jj, ii) / ruser_meshblock_data[5](0);
-            ruser_meshblock_data[n](kk, jj, ii) = 0.0;
-          }
+//           for(int n=0; n<5; n++) {
+//             user_out_var(n, k, j, i) = ruser_meshblock_data[n](kk, jj, ii) / ruser_meshblock_data[5](0);
+//             ruser_meshblock_data[n](kk, jj, ii) = 0.0;
+//           }
 
-        }
-      }
-    }
+//         }
+//       }
+//     }
 
-    ruser_meshblock_data[5](0) = 0.0;
-  }
+//     ruser_meshblock_data[5](0) = 0.0;
+//   }
 
-}
+// }
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
@@ -688,13 +837,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     rk4<decltype(calcLaneEmden), laneEmden>(calcLaneEmden, dxi, xi, le);
   }
   
-  Real x, rho, pres;
+  Real rho, pres;
   
   for (int k=ks; k<=ke; k++) {
     for (int j=js; j<=je; j++) {
       for (int i=is; i<=ie; i++) {
         
-        x = pcoord->x1v(i);
         rho = s1->rho;
         pres = 1.83685e-08 * rho; // p=nkT where T=1e5
         
@@ -705,6 +853,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         phydro->u(IM3, k, j, i) = 0.0;
         phydro->u(IEN, k, j, i) = pres / (gam - 1.0);
         pscalars->s(0, k, j, i) = rho / 1.e6;
+
+      }
+    }
+  }
+
+  for (int k=0; k<ncells3; ++k) {
+    for (int j=0; j<ncells2; ++j) {
+      for (int i=0; i<ncells1; ++i) {
+      
+        pnrrad->sigma_s(k, j, i, 0)  = 0.0;
+        pnrrad->sigma_a(k, j, i, 0)  = 0.0;
+        pnrrad->sigma_pe(k, j, i, 0) = 0.0;
+        pnrrad->sigma_p(k, j, i, 0)  = 0.0;
 
       }
     }

@@ -1,0 +1,169 @@
+<comment>
+problem   = TDE self-intersection
+reference =
+configure = --prob=tde_inject
+
+<job>
+problem_id = tde_inject  # problem ID: basename of output filenames
+
+<output1>
+file_type  = hdf5      # HDF5 data dump
+variable   = d,p,v,r0  # variables to be output
+id         = slicez
+dt         = 100.0      # time increment between outputs
+x3_slice   = 0.0
+
+<output2>
+file_type  = hdf5      # HDF5 data dump
+variable   = one,d,p,v # variables to be output
+id         = sumz
+dt         = 1000.0      # time increment between outputs
+x3_dsum    = true
+
+<output3>
+file_type  = hdf5      # HDF5 data dump
+variable   = one,d,p,v # variables to be output
+id         = sumy
+dt         = 1000.0      # time increment between outputs
+x2_dsum    = true
+
+<output4>
+file_type   = hst    # history data dump
+dt          = 10.0 # time increment between outputs
+data_format = %.12e  # output data format
+
+#<output5>
+#file_type  = hdf5      # HDF5 data dump
+#variable   = d,p,v,r0  # variables to be output
+#id         = 3d
+#dt         = 10.0      # time increment between outputs
+#next_time  = 14250.0
+
+<time>
+cfl_number =             0.3  # CFL number
+nlim       =              -1  # cycle limit
+tlim       =            100000 # cycle limit
+integrator =             vl2  # time integration algorithm
+xorder     =               2  # order of spatial reconstruction
+ncycle_out =               1  # interval for stdout summary info
+start_time =             0.0  # time of simulation start
+dt_max     =             30.0 # maximum timestep
+
+<mesh>
+
+refinement = static
+
+nx1        = 128                # Number of zones in X1-direction
+x1min      = -2048.0              # minimum value of X1
+x1max      = 2048.0             # maximum value of X1
+ix1_bc     = outflow               # inner-X1 boundary flag
+ox1_bc     = outflow               # outer-X1 boundary flag
+
+nx2        = 128                # Number of zones in X2-direction
+x2min      = -2048.0               # minimum value of X2
+x2max      = 2048.0                # maximum value of X2
+ix2_bc     = outflow            # inner-X2 boundary flag
+ox2_bc     = outflow           # outer-X2 boundary flag
+
+nx3        = 128                 # Number of zones in X3-direction
+x3min      = -2048.0                  # minimum value of X3
+x3max      = 2048.0                # maximum value of X3
+ix3_bc     = outflow         # inner-X3 boundary flag
+ox3_bc     = outflow            # outer-X3 boundary flag
+
+<meshblock>
+nx1        = 32
+nx2        = 32
+nx3        = 32
+
+<refinement1>
+x1min       =      -1024.0
+x1max       =      1024.0
+x2min       =      -1024.0
+x2max       =      1024.0
+x3min       =      -1024.0
+x3max       =      1024.0
+level       =      1
+
+<refinement2>
+x1min       =      -512.0
+x1max       =      512.0
+x2min       =      -512.0
+x2max       =      512.0
+x3min       =      -512.0
+x3max       =      512.0
+level       =      2
+
+<refinement3>
+x1min       =      -256.0
+x1max       =      256.0
+x2min       =      -256.0
+x2max       =      256.0
+x3min       =      -256.0
+x3max       =      256.0
+level       =      3
+
+<refinement4>
+x1min       =      -128.0
+x1max       =      128.0
+x2min       =      -128.0
+x2max       =      128.0
+x3min       =      -128.0
+x3max       =      128.0
+level       =      4
+
+<refinement5>
+x1min       =      -64.0
+x1max       =      64.0
+x2min       =      -64.0
+x2max       =      64.0
+x3min       =      -64.0
+x3max       =      64.0
+level       =      5
+
+<refinement6>
+x1min       =      -32.0
+x1max       =      32.0
+x2min       =      -32.0
+x2max       =      32.0
+x3min       =      -32.0
+x3max       =      32.0
+level       =      6
+
+<refinement7>
+x1min       =      -16.0
+x1max       =      16.0
+x2min       =      -16.0
+x2max       =      16.0
+x3min       =      -16.0
+x3max       =      16.0
+level       =      7
+
+<refinement8>
+x1min       =            -936
+x1max       =            -736
+x2min       =            -537
+x2max       =            -337
+x3min       =            -100
+x3max       =             100
+level       =               3
+
+<hydro>
+gamma = 1.333333333333333 # gamma = C_p/C_v
+dfloor          = 1.e-23 # density floor
+rho_min         = 1.e-18 # density floor 
+rho_pow         = -1.5
+pfloor          = 1.e-33  # pressure floor
+pgas_min        = 1.e-26  # pressure floor
+pgas_pow        = -2.0
+
+<problem>
+rinj = 100.0
+rsink = 128.0
+inj_file = /home/za9132/scratch/tde_si/inject/inject.000
+
+<units>
+unit_system = custom
+length_cgs = 1.4770934e+11  # gravitational radius
+mass_cgs = 1.9891e+39       # BH mass
+time_cgs = 4.9270606        # light-crossing time of gravitational radius

@@ -78,6 +78,7 @@ void Hydro::NewBlockTimeStep() {
       pmb->pcoord->CenterWidth3(k, j, is, ie, dt3);
 
       // Newtonian case: divide cell widths by maximum characteristic speed
+      // if (true) { // TESTING
       if (!RELATIVISTIC_DYNAMICS) {
 #pragma ivdep
         for (int i=is; i<=ie; ++i) {
@@ -127,6 +128,7 @@ void Hydro::NewBlockTimeStep() {
         }
       }
 
+      // TESTING
       // SR case: do nothing (assume maximum characteristic is c = 1)
       // GR case: divide cell widths by coordinate speed of light (not necessarily unity)
       if (GENERAL_RELATIVITY) {
@@ -142,7 +144,7 @@ void Hydro::NewBlockTimeStep() {
           dt2(i) /= speed2;
           dt3(i) /= speed3;
         }
-      }
+      }      
 
       // compute minimum of (v1 +/- C)
       for (int i=is; i<=ie; ++i) {

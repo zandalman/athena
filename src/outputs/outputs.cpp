@@ -386,6 +386,23 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
 
   // NEW_OUTPUT_TYPES:
 
+  // one (useful for dsum)
+  if (ContainVariable(output_params.variable, "one")) {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = "one";
+    pod->data.NewAthenaArray(1, phyd->w.GetDim3(), phyd->w.GetDim2(), phyd->w.GetDim1());
+    for (int k=0; k<phyd->w.GetDim3(); k++) {
+      for (int j=0; j<phyd->w.GetDim2(); j++) {
+        for (int i=0; i<phyd->w.GetDim1(); i++) {
+          pod->data(0, k, j, i) = 1.0;
+        }
+      }
+    }
+    AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+  
   // (lab-frame) density
   if (ContainVariable(output_params.variable, "D") ||
       ContainVariable(output_params.variable, "cons")) {
