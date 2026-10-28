@@ -318,14 +318,29 @@ void tdeSrcFunc(
   // calculate affine model parameters
   int idx;
   Real iparam;
-  Real r_star = calcOrbit(time);
-  Real tau = calcTau(time, r_star);
-  Real dtau_dt = sqrt(tde->G * tde->M_BH / (2.0 * r_star*r_star*r_star));
-  calcIparam(tau, tde->num_tau, -tde->tau_max, tde->tau_max, idx, iparam);
-  Real area = interp(idx, iparam, tde->area);
-  Real darea_dtau = interp(idx, iparam, tde->areadot);
-  Real areadot = darea_dtau * dtau_dt;
-  Real logrhodot = r_star < tde->r_t ? -areadot / area : 0.0;
+
+  // Real r_star = calcOrbit(time);
+  // Real tau = calcTau(time, r_star);
+  // Real dtau_dt = sqrt(tde->G * tde->M_BH / (2.0 * r_star*r_star*r_star));
+  // calcIparam(tau, tde->num_tau, -tde->tau_max, tde->tau_max, idx, iparam);
+  // Real area = interp(idx, iparam, tde->area);
+  // Real darea_dtau = interp(idx, iparam, tde->areadot);
+  // Real areadot = darea_dtau * dtau_dt;
+  // Real logrhodot = r_star < tde->r_t ? -areadot / area : 0.0;
+
+  // self-gravity
+  int idx;
+  Real iparam;
+  calcIparam2(time, myglb->num_tau, myglb->tau, idx, iparam);
+  r = interp(idx, iparam, myglb->r);
+  area = interp(idx, iparam, myglb->area);
+  areadot = interp(idx, iparam, myglb->areadot);
+  C22 = interp(idx, iparam, myglb->C22);
+  Real logrhodot = -areadot / area;
+
+
+  Real r_star = 
+
   Real mass = calcMassIn(pmb, prim, prim_scalar);
 
   // cache values for history outputs
@@ -350,7 +365,8 @@ void tdeSrcFunc(
     fac = exp(-(1.0 - mask) / 0.005);
 
     // tides
-    vdot = -tde->G * tde->M_BH * z / (r_star*r_star*r_star);
+    // vdot = -tde->G * tde->M_BH * z / (r_star*r_star*r_star);
+    vdot = 
     
     // self-gravity
     calcIparam2(mfrac, tde->num_le, tde->mfrac, idx, iparam);
