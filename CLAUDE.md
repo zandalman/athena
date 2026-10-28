@@ -6,9 +6,24 @@ module (src/chemistry/).
 Design notes and decisions: docs/nuclear-network-plan.md. Read this before
 starting work, and update it when a design decision is made.
 
+**Handoff (2026-10-28):** the project passed from the PI to a student, who is new to this
+code. Read docs/nuclear-network-handoff.md first: it covers environment setup on stellar,
+how to reproduce the validated one-zone tests, the pitfalls, and next steps. Teach before
+building. Explain the existing work and the reasons behind it, and have the student
+reproduce the tests before adding features. Give shell commands one per line (no
+backslash continuations).
+
 ## Reference docs (read when relevant; don't load wholesale)
 - docs/athena-wiki/: Athena++ wiki
 - docs/nuclear-network-plan.md: our design decisions
+- docs/nuclear-network-handoff.md: setup, status, pitfalls, next steps
+
+## Nuclear network (status)
+- `--chemistry=nuclear_<small|aprox13>` uses `src/chemistry/network/nuclear.{hpp,cpp}`
+  around pynucastro-generated headers in `src/chemistry/network/nuclear/<name>/`. The
+  networks are defined in `tools/nuclear/networks.py`. Fixed T, isothermal EOS only.
+- Validated against a Python reference of the same network with the one-zone test
+  `--prob=nuc_onezone` (`tools/nuclear/check_onezone.py`).
 
 ## Architecture (baseline chemistry: H2 network, CVODE, adiabatic EOS)
 - Selection: `configure.py` (~L708-766). `--chemistry=X` sets `CHEMNETWORK_HEADER`
@@ -37,7 +52,12 @@ starting work, and update it when a design decision is made.
   `code_energydensity_cgs` and `code_time_cgs`.
 
 ## Environment
-  module load anaconda3/2020.11
+`source modules.sh` (repo root) loads the following and activates conda env `nucnet`
+(pynucastro, scipy, matplotlib). Do it before building *and* before running (the Intel
+runtime libs are needed). Compile on stellar-vis1 or a login node; icpx isn't usable on
+compute nodes.
+  module load anaconda3/2024.6
   module load intel/2021.1.2
   module load intel-mpi/intel/2021.1.1
   module load hdf5/intel-2021.1/intel-mpi/1.10.6
+  module load gcc-toolset/13   # libstdc++ for C++20; build with --cxx=icpx -std=c++20

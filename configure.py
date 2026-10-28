@@ -204,7 +204,8 @@ parser.add_argument('--fftw_path',
 # --chemistry argument
 parser.add_argument('--chemistry',
                     default=None,
-                    choices=["gow17", "H2", "kida", "G14Sod"],
+                    choices=["gow17", "H2", "kida", "G14Sod", "nuclear_small",
+                             "nuclear_aprox13"],
                     help='select chemical network')
 
 # --kida_rates argument
@@ -578,7 +579,7 @@ if args['cxx'] == 'g++':
     definitions['COMPILER_CHOICE'] = 'g++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++20'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'g++-simd':
@@ -587,7 +588,7 @@ if args['cxx'] == 'g++-simd':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'g++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-        '-O3 -std=c++11 -fopenmp-simd -fwhole-program -flto -ffast-math '
+        '-O3 -std=c++20 -fopenmp-simd -fwhole-program -flto -ffast-math '
         '-march=native -fprefetch-loop-arrays'
         # -march=skylake-avx512, skylake, core-avx2
         # -mprefer-vector-width=128  # available in gcc-8, but not gcc-7
@@ -605,7 +606,7 @@ if args['cxx'] == 'icpx':
     # ICX drivers icx and icpx will accept ICC Classic Compiler options or Clang*/LLVM
     # Compiler options
     makefile_options['COMPILER_FLAGS'] = (
-      '-O3 -std=c++11 -ipo -xhost -qopenmp-simd '
+      '-O3 -std=c++20 -ipo -xhost -qopenmp-simd '
       '-Wno-tautological-constant-compare -Wno-array-bounds'
     )
     # Currently unsupported, but "options to be supported" according to icpx
@@ -618,7 +619,7 @@ if args['cxx'] == 'icpc':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icpc'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-      '-O3 -std=c++11 -ipo -xhost -inline-forceinline -qopenmp-simd -qopt-prefetch=4 '
+      '-O3 -std=c++20 -ipo -xhost -inline-forceinline -qopenmp-simd -qopt-prefetch=4 '
       '-qoverride-limits '  # -qopt-report-phase=ipo (does nothing without -ipo)
       '-diag-disable=10441'  # The Intel(R) C++ Compiler Classic (ICC) is deprecated
     )
@@ -632,7 +633,7 @@ if args['cxx'] == 'icpc-debug':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icpc'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-      '-O3 -std=c++11 -xhost -qopenmp-simd -fp-model precise -qopt-prefetch=4 '
+      '-O3 -std=c++20 -xhost -qopenmp-simd -fp-model precise -qopt-prefetch=4 '
       '-qopt-report=5 -qopt-report-phase=openmp,vec -g -qoverride-limits '
       '-diag-disable=10441'
     )
@@ -645,7 +646,7 @@ if args['cxx'] == 'icpc-phi':
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'icpc'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
     makefile_options['COMPILER_FLAGS'] = (
-      '-O3 -std=c++11 -ipo -xMIC-AVX512 -inline-forceinline -qopenmp-simd '
+      '-O3 -std=c++20 -ipo -xMIC-AVX512 -inline-forceinline -qopenmp-simd '
       '-qopt-prefetch=4 -qoverride-limits'
     )
     makefile_options['LINKER_FLAGS'] = ''
@@ -656,7 +657,7 @@ if args['cxx'] == 'cray':
     definitions['COMPILER_CHOICE'] = 'cray'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'CC'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -h std=c++11 -h aggress -h vector3 -hfp3'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -h std=c++20 -h aggress -h vector3 -hfp3'
     makefile_options['LINKER_FLAGS'] = '-hwp -hpl=obj/lib'
     makefile_options['LIBRARY_FLAGS'] = '-lm'
 if args['cxx'] == 'bgxlc++':
@@ -684,7 +685,7 @@ if args['cxx'] == 'clang++':
     definitions['COMPILER_CHOICE'] = 'clang++'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++20'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'clang++-simd':
@@ -693,7 +694,7 @@ if args['cxx'] == 'clang++-simd':
     definitions['COMPILER_CHOICE'] = 'clang++-simd'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11 -fopenmp-simd'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++20 -fopenmp-simd'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 if args['cxx'] == 'clang++-apple':
@@ -701,7 +702,7 @@ if args['cxx'] == 'clang++-apple':
     definitions['COMPILER_CHOICE'] = 'clang++-apple'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'clang++'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
+    makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++20'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 
@@ -721,6 +722,17 @@ if args['chemistry'] is not None:
         definitions['NUMBER_CHEMICAL_SPECIES'] = '2'
     elif args['chemistry'] == "G14Sod":
         definitions['NUMBER_CHEMICAL_SPECIES'] = '8'
+    elif args['chemistry'].startswith("nuclear_"):
+        # nuclear networks share one wrapper (nuclear.{hpp,cpp}) around pynucastro-
+        # generated headers in src/chemistry/network/nuclear/<name>/
+        nuclear_nspecies = {"small": '5', "aprox13": '13'}
+        nuclear_name = args['chemistry'][len("nuclear_"):]
+        definitions['NUMBER_CHEMICAL_SPECIES'] = nuclear_nspecies[nuclear_name]
+        definitions['CHEMNETWORK_HEADER'] = '../chemistry/network/nuclear.hpp'
+        makefile_options['CHEMNET_FILE'] = 'src/chemistry/network/nuclear.cpp'
+        # the generated headers use #include <...> among themselves
+        makefile_options['PREPROCESSOR_FLAGS'] += \
+            ' -Isrc/chemistry/network/nuclear/' + nuclear_name
 else:
     definitions['CHEMISTRY_ENABLED'] = '0'
     definitions['NUMBER_CHEMICAL_SPECIES'] = '0'
@@ -761,7 +773,7 @@ else:
 
 # --cvode_path=[path] argument
 if args['cvode_path'] != '':
-    makefile_options['PREPROCESSOR_FLAGS'] += '-I%s/include' % args['cvode_path']
+    makefile_options['PREPROCESSOR_FLAGS'] += ' -I%s/include' % args['cvode_path']
     makefile_options['LINKER_FLAGS'] += '-L%s/lib' % args['cvode_path']
     makefile_options['LINKER_FLAGS'] += " -Wl,-rpath," + '%s/lib' % args['cvode_path']
 
@@ -791,13 +803,13 @@ if args['debug']:
             or args['cxx'] == 'icpc' or args['cxx'] == 'icpc-debug'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
             or args['cxx'] == 'clang++-apple'):
-        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g'  # -Og
+        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++20 -g'  # -Og
     if args['cxx'] == 'cray':
-        makefile_options['COMPILER_FLAGS'] = '-O0 -h std=c++11'
+        makefile_options['COMPILER_FLAGS'] = '-O0 -h std=c++20'
     if args['cxx'] == 'bgxlc++':
         makefile_options['COMPILER_FLAGS'] = '-O0 -g -qlanglvl=extended0x'
     if args['cxx'] == 'icpc-phi':
-        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g -xMIC-AVX512'
+        makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++20 -g -xMIC-AVX512'
 else:
     definitions['DEBUG_OPTION'] = '0'
 

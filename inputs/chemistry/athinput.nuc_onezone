@@ -1,0 +1,62 @@
+<comment>
+problem   = one-zone nuclear burning at fixed density and temperature
+reference = docs/nuclear-network-plan.md
+configure = --prob=nuc_onezone --chemistry=nuclear_<small|aprox13> --chem_ode_solver=cvode --eos=isothermal --cxx=icpx
+
+<job>
+problem_id = nuc_onezone   # problem ID: basename of output filenames
+
+<output1>
+file_type  = hst       # history: volume-integrated species masses (X_i = species/mass)
+dcycle     = 1         # every cycle (cycles are log-spaced in time)
+data_format = %24.16e  # full precision (default %12.5e keeps 6 significant digits)
+
+<time>
+cfl_number = 0.3       # The Courant, Friedrichs, & Lewy (CFL) Number
+nlim       = -1        # cycle limit
+tlim       = 10.       # time limit, s
+ncycle_out = 50        # interval for stdout summary info
+
+<mesh>
+nx1        = 4         # Number of zones in X1-direction
+x1min      = -0.5      # minimum value of X1
+x1max      = 0.5       # maximum value of X1
+ix1_bc     = periodic  # inner-X1 boundary flag
+ox1_bc     = periodic  # outer-X1 boundary flag
+
+nx2        = 1         # Number of zones in X2-direction
+x2min      = -0.5      # minimum value of X2
+x2max      = 0.5       # maximum value of X2
+ix2_bc     = periodic  # inner-X2 boundary flag
+ox2_bc     = periodic  # outer-X2 boundary flag
+
+nx3        = 1         # Number of zones in X3-direction
+x3min      = -0.5      # minimum value of X3
+x3max      = 0.5       # maximum value of X3
+ix3_bc     = periodic  # inner-X3 boundary flag
+ox3_bc     = periodic  # outer-X3 boundary flag
+
+<units>
+unit_system = custom   # cgs code units
+mass_cgs    = 1.
+length_cgs  = 1.
+time_cgs    = 1.
+
+<hydro>
+iso_sound_speed = 1e-30   # tiny, so the hydro timestep never limits dt
+sfloor          = 0       # passive scalar floor
+
+<problem>
+rho        = 1e7          # density, g/cm^3
+dt_init    = 1e-12        # first timestep, s
+dt_fac     = 0.05         # dt = max(dt_init, dt_fac*time)
+X_C12      = 0.5          # initial mass fractions (unset species are 0)
+X_O16      = 0.5
+
+<chemistry>
+temperature = 3e9         # fixed temperature, K
+reltol     = 1.0e-6       # relative tolerance
+abstol     = 1.0e-12      # absolute tolerance on mass fractions
+user_jac   = true         # analytic Jacobian from pynucastro
+maxorder   = 5            # BDF order
+maxsteps   = 100000       # maximum number of steps in one integration
